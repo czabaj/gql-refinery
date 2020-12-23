@@ -1,0 +1,785 @@
+# for multi-line strings use indicator `>-` which ignores newlines in source
+# thus they are handled by documentation tool. To add newline explicitly (to
+# end paragraph) put two newlines.
+# see https://yaml-multiline.info
+
+# OAS reference https://github.com/OAI/OpenAPI-Specification/blob/master/versions/3.0.0.md#schemaObject
+
+openapi: 3.0.0
+
+info:
+  title: api-spec-gate
+  description: Specification of internal REST API for payment gateway
+  version: 2.4.5
+
+servers:
+  - description: Accept
+    url: https://api.client.accept.mallyna.cz/api/gate/
+  - description: Integration
+    url: https://api.client.mallyna.cz/api/gate/
+  - description: Production
+    url: https://api.client.mallpay.cz/api/gate/
+
+paths:
+  /{applicationSlug}/:
+    summary: Get current application state
+    description: >-
+      State of application is driven by back-end. Server communicates which
+      screen shall be displayed via `view_slugs` tuple in response.
+
+
+      If customer account is not secured by 2FA, initial call of this resource
+      sends OTP via SMS. Customers secured with 2FA are fully serviced by
+      #/paths/api/gate/{applicationSlug}/login/ resource
+    get:
+      operationId: gateState
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      responses:
+        200:
+          description: Order data
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - is_authenticated
+                  - customer
+                  - order
+                  # - _rest_links
+                  - _web_links
+                  - settings
+                  - view_slugs
+                properties:
+                  available_limit:
+                    type: string
+                  first_unpaid_order:
+                    $ref: '#/components/schemas/OrderUnpaid'
+                  credit_segment:
+                    deprecated: true
+                    type: string
+                  customer:
+                    oneOf:
+                      - $ref: '#/components/schemas/User'
+                      - $ref: '#/components/schemas/UserAuthenticated'
+                  form:
+                    $ref: '#/components/schemas/Form'
+                  is_authenticated:
+                    type: boolean
+                  order:
+                    $ref: '#/components/schemas/Order'
+                  required_price_limit:
+                    type: string
+                  # unused
+                  settings:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      app_settings:
+                        type: object
+                        additionalProperties: false
+                        properties:
+                          bank_account:
+                            $ref: '#/components/schemas/BankAccount'
+                      settings:
+                        type: object
+                        properties:
+                          contact_phone:
+                            type: string
+                          environment:
+                            title: EnvironmentsEnum
+                            enum:
+                              - prod
+                              - dev
+                              - accept
+                              - preprod
+                              - local
+                          gate_timeout:
+                            type: integer
+                          google_static_maps_api_key:
+                            type: string
+                  unpaid_orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/OrderUnpaid'
+                    description: if self.can_pay_orders_to_get_available_limit_above_price()
+                  unpaid_orders_sum:
+                    type: string
+                    description: if self.can_pay_orders_to_get_available_limit_above_price()
+                  view_slugs:
+                    type: array
+                    maxItems: 2
+                    minItems: 2
+                    items:
+                      title: ViewSlugsEnum
+                      enum:
+                        - age
+                        - annual-limit
+                        - complete
+                        - customer-info-not-match
+                        - default
+                        - error
+                        - first
+                        - first-added-data
+                        - first-pay-first-order
+                        - homecredit
+                        - limit
+                        - login
+                        - not-available
+                        - rejected
+                        - required_id_card
+                        - required_personal_id
+                        - required_third_party_telco_consent
+                        - revolving
+                        - revolving-limit
+                        - revolving-overdue
+                        - scoring
+                        - second
+                        - second-added-data
+                        - second-paid-order
+                        - second-pay-orders
+                        - soft
+                        - success
+                        - timeout
+                  _web_links:
+                    type: object
+                    properties:
+                      back-to-eshop:
+                        type: string
+                      facebook-login:
+                        type: string
+                      lymet-web:
+                        type: string
+                      mojeid-login:
+                        type: string
+                      success:
+                        type: string
+
+  /{applicationSlug}/login/:
+    summary: Login user
+    description: Customer login
+    post:
+      operationId: login
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                agree_with_processing_personal_data:
+                  type: boolean
+                agree_with_terms_and_conditions:
+                  type: boolean
+                confirm_new_address:
+                  type: boolean
+                consents:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ConsentItem'
+                exponea_cookie:
+                  description: UUID from cookie '__exponea_etc__', for marketing purposes.
+                  type: string
+                token:
+                  description: >-
+                    OTP received via SMS. If account is secured with 2FA also `password` must be provided.
+                  type: string
+                password:
+                  description: >-
+                    Required only for accounts secured with 2FA. Login flow:
+                    1. client calls login resource with `password`,
+                    2. if `password` match, system sends OTP to customer's phone,
+                    3. client calls login resource with `password` and `token`,
+                    4. if `password` and `token` match, customer is authenticated.
+                  type: string
+
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  token:
+                    type: string
+                  user:
+                    type: object
+                    additionalProperties: false
+                    properties:
+                      id:
+                        type: string
+                      _obj_name:
+                        type: string
+        400:
+          description: Error reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+        480:
+          $ref: '#/components/responses/480OTPSend'
+
+  /{applicationSlug}/additional-data/:
+    summary: Send additional data
+    description: Customer login
+    post:
+      operationId: sendAdditionalData
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                consents:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ConsentItem'
+                id_card_expiry_date:
+                  description: String containing date in format "dd.MM.yyyy"
+                  type: string
+                id_card_no:
+                  type: string
+                personal_id:
+                  type: string
+      responses:
+        200:
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSuccess'
+        400:
+          description: Error reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+
+  /{applicationSlug}/send-order-verification-sms/:
+    summary: Resend SMS OTP
+    description: >-
+      Server automatically sends OTP via SMS when application is created. This
+      endpoint server for triggering resend OTP in case user did not received
+      the first one.
+    post:
+      operationId: resendVerificationSms
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmptyBody'
+      responses:
+        200:
+          description: SMS sent succesfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSuccess'
+        400:
+          description: Sending of SMS failed on the server
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+        429:
+          description: >-
+            Rate-limit for SMS OTP was reached. User must wait a little bit
+            longer before triggering resend again.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+
+  /bankaccount/:
+    summary: Get user bank account
+    description: An czech bank account number.
+    get:
+      operationId: bankAccount
+      deprecated: true
+      security:
+        - BearerAuth: []
+      responses:
+        200:
+          description: Bank account of the MALL Pay service
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BankAccount'
+        401:
+          description: unauthorized
+
+  /{applicationSlug}/subscribe-news/:
+    summary: Subscribe news
+    post:
+      operationId: subscribeNews
+      description: Sets marketing consent for user
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                consents:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ConsentItem'
+      responses:
+        200:
+          description: Consent data was saved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSuccess'
+        400:
+          description: Error reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+
+  /{applicationSlug}/payment-request/:
+    summary: Pay unpaid order
+    post:
+      operationId: payOrder
+      description: Initializes new payment request
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                amount:
+                  description: >-
+                    Amount to pay as string containing number with two decimal places. Is
+                    exclusive to property `order`.
+                  type: string
+                order:
+                  description: ID of order to pay. Is exclusive to property `amount`.
+                  type: integer
+                payment_method:
+                  title: PaymentMethodsEnum
+                  enum:
+                    - CARD
+                    - EKONTO
+                    - MOJE_PLATBA
+                    - PLATBA24
+                redirect_to_fail:
+                  description: >-
+                    URL to gate in case of error. Error reason is not propagated. Mostly
+                    the user cancels payment.
+                  type: string
+                redirect_to_success:
+                  description: URL to gate in case of successful payment.
+                  type: string
+      responses:
+        201:
+          description: The request was successfully sent.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  amount:
+                    description: Amount for payment in CZK.
+                    type: number
+                  id:
+                    description: _UNSUED_ `id` of object at backend.
+                    type: integer
+                  redirect_to_success:
+                    description: URL of gate in case of successful payment.
+                    type: string
+                  thepay_redirect_url:
+                    description: URL of the pay where to redirect user.
+                    type: string
+                  _obj_name:
+                    description: _UNSUED_ `_obj_name` of object at backend.
+                    type: string
+
+  /{applicationSlug}/sessionclickdata/:
+    summary: Send fingerprint
+    post:
+      operationId: sendFingerprint
+      description: Sends fingerprint data of users browser to prevent malicious attempts.
+      parameters:
+        - $ref: '#/components/parameters/applicationSlug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+      responses:
+        201:
+          $ref: '#/components/responses/204SuccessNoContent'
+        400:
+          description: Error reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseError'
+
+components:
+  parameters:
+    applicationSlug:
+      in: path
+      name: applicationSlug
+      required: true
+      description: >-
+        Unique id of application generated by back-end and passed in URL as
+        first segment of pathname.
+      schema:
+        type: string
+
+  schemas:
+    BankAccount:
+      type: object
+      additionalProperties: false
+      properties:
+        bank_account_number:
+          type: string
+        bank_account_number_with_prefix:
+          type: string
+        bank_code:
+          type: string
+
+    ConsentItem:
+      type: object
+      additionalProperties: false
+      properties:
+        business_date:
+          type: string
+          deprecated: true
+          description: >-
+            consent datetime in iso-8601 format, ex. 2018-04-20T17:34:21+02:00,
+            not required, discouraged since server time is more accurate
+        slug:
+          type: string
+          description: 'slug of consent, ex. precheck'
+      required:
+        - slug
+
+    EmptyBody:
+      type: object
+      properties:
+        _:
+          description: >-
+            Object without properties is not valid in GQL, so we set simple "_"
+            property here.
+          type: boolean
+
+    Field:
+      type: object
+      properties:
+        is_readonly:
+          type: boolean
+        label:
+          type: string
+        name:
+          type: string
+      #        initial:
+      #          type: object
+      required:
+        - name
+        - label
+
+    Form:
+      type: object
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+        fields:
+          type: array
+          items:
+            $ref: '#/components/schemas/Field'
+
+    Order:
+      allOf:
+        - $ref: '#/components/schemas/OrderBase'
+        - type: object
+          additionalProperties: false
+          properties:
+            agree_with_terms_and_conditions:
+              type: boolean
+
+    OrderBase:
+      type: object
+      additionalProperties: false
+      properties:
+        billing_address:
+          type: object
+          additionalProperties: false
+          required:
+            - city
+            - country
+            - street
+            - street_number
+            - zip_code
+          properties:
+            city:
+              type: string
+            country:
+              type: string
+            street:
+              type: string
+            street_number:
+              type: string
+            zip_code:
+              type: string
+        created_at:
+          type: string
+        customer_debt:
+          type: string
+        delivery_carrier_fee:
+          type: string
+        delivery_carrier_textual:
+          type: string
+        eshop:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - is_back_button_enabled
+            - is_used_finish_auto_redirect
+            - name
+            - url
+          properties:
+            id:
+              type: string
+            is_back_button_enabled:
+              type: boolean
+            is_show_verified_account_promo:
+              type: boolean
+            is_used_finish_auto_redirect:
+              type: boolean
+            logo:
+              type: object
+              properties:
+                content_type:
+                  type: string
+                filename:
+                  type: string
+                url:
+                  type: string
+            name:
+              type: string
+            url:
+              type: string
+        has_christmas_campaign:
+          type: boolean
+        id:
+          type: string
+        items:
+          type: array
+          description: 'Order items'
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - total_price
+              - name
+              - quantity
+            properties:
+              description:
+                type: string
+              id:
+                type: string
+              image_url:
+                type: string
+              name:
+                type: string
+              quantity:
+                type: integer
+              total_price:
+                type: string
+              type:
+                type: integer
+        paygate_slug:
+          type: string
+        real_customer_debt:
+          type: string
+        total_price:
+          type: string
+
+    OrderUnpaid:
+      allOf:
+        - $ref: '#/components/schemas/OrderBase'
+        - type: object
+          additionalProperties: false
+          properties:
+            club_state:
+              type: string
+            due_date:
+              type: string
+            due_date_legal:
+              type: string
+            ext_variable_symbol:
+              type: string
+            is_after_due_date:
+              type: boolean
+            is_first:
+              type: boolean
+            remaining_days:
+              type: integer
+            sanctions:
+              type: array
+              items:
+                type: object
+                additionalProperties: false
+                properties:
+                  cumputed_amount:
+                    type: string
+
+    ResponseError:
+      type: object
+      additionalProperties: false
+      properties:
+        messages:
+          type: object
+          additionalProperties: false
+          properties:
+            error:
+              type: string
+            errors:
+              type: array
+              items:
+                type: string
+
+    ResponseSuccess:
+      type: object
+      additionalProperties: false
+      properties:
+        messages:
+          type: object
+          properties:
+            success:
+              type: string
+
+    User:
+      type: object
+      additionalProperties: false
+      properties:
+        obfuscated_email:
+          type: string
+        obfuscated_phone:
+          type: string
+        vocativated_first_name:
+          type: string
+
+    UserAuthenticated:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          additionalProperties: false
+          properties:
+            account_type:
+              title: AccountTypeEnum
+              enum:
+                - COMPLETE
+                - PLUS
+                - START
+                - TRY_IT
+            after_degree:
+              type: string
+            available_annual_amount:
+              type: string
+            available_limit:
+              type: string
+            before_name:
+              type: string
+            calculated_max_orders_count_for_unverified_customer:
+              type: integer
+            email:
+              type: string
+            first_name:
+              type: string
+            has_marketing_consent:
+              type: boolean
+            has_verified_account:
+              type: boolean
+            last_name:
+              type: string
+            name_ambiguous:
+              type: string
+            price_limit:
+              type: string
+            remaining_order_count_for_unverified_customer:
+              type: integer
+            total_annual_limit:
+              type: string
+            unpaid_complete_orders_debt:
+              type: string
+            variable_symbol:
+              type: string
+
+  responses:
+    204SuccessNoContent:
+      description: Success, empty response.
+
+    480OTPSend:
+      description: Operation must be verified via OTP. OTP was send to customer's phone.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              otp_valid_to:
+                type: string
+                description: Datetime of OTP token expiration in ISO-8601 format.
+                example: 2018-04-20T17:34:21+02:00
+              phone:
+                type: string
+                description: >-
+                  Customer's phone where OTP code was sent. Phone number is obfuscated for unauthenticated users.
+                example: +420 737 *** *56
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    message:
+                      type: string
+                      example: Enter an SMS verification code.
+                    code:
+                      type: string
+                      example: invalid
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
