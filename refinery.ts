@@ -1,41 +1,50 @@
+import * as path from "https://deno.land/std/path/mod.ts";
+
+import { G } from "./deps.ts";
 import { color, log, stringify } from "./log.ts";
 import { toGraphQL } from "./openApiV3.destillery.ts";
-import { AnyObject, OpenAPIV3 } from "./types.d.ts";
-import { loadFile } from "./utils.ts";
+import { isOpenAPIV3Document } from "./openApiV3.utils.ts";
+import { ApiArtifacts } from "./types.d.ts";
+import {
+  convertOpenApiPathParamsToColonParams,
+  getGraphQLTypeName,
+  loadFile,
+} from "./utils.ts";
 
-enum ApiSpecificationFormats {
-  OpenAPI_v3,
-}
-
-const inferType = (specContent: AnyObject) => {
-  if (
-    typeof specContent.openapi === "string" &&
-    specContent.openapi.startsWith("3")
-  ) {
-    return {
-      document: specContent as unknown as OpenAPIV3.Document,
-      format: ApiSpecificationFormats.OpenAPI_v3,
-    };
-  }
-  throw new Error(
-    `Unsupported file format. Currently, only OpenAPI v3 is supported. Received:
-    
-    ${stringify(specContent, { maxDepth: 1 })}`,
-  );
-};
-
-export const processSpecificationFile = async (specFile: string) => {
+export const convert = async (specFile: string, outputDir: string) => {
   log(color.blue(`Loading file: ${specFile}`));
   const content = await loadFile(specFile);
-  const { document, format } = inferType(content);
-  log(
-    color.blue(
-      `File is of type ${ApiSpecificationFormats[format]}`,
-    ),
-  );
-  switch (format) {
-    case ApiSpecificationFormats.OpenAPI_v3:
-      await toGraphQL(document);
-      break;
+  if (!isOpenAPIV3Document(content)) {
+    throw new Error(
+      `File does not contain a valid OpenAPIV3 document:
+
+      ${stringify(content, { maxDepth: 1 })}`,
+    );
   }
+
+  const { enums, objectsRelation, operations, possibleTypes }: ApiArtifacts = {
+    enums: {},
+    objectsRelation: {},
+    operations: [],
+    possibleTypes: {},
+  };
+
+  const gqlSchema = toGraphQL(
+    content,
+    {
+      onOperationDistilled(path, httpMethod, operationId, fieldConfig) {
+        operations.push({
+          httpMethod,
+          operationId,
+          path: convertOpenApiPathParamsToColonParams(path),
+          responseType: getGraphQLTypeName(fieldConfig.type),
+        });
+      },
+    },
+  );
+
+  await Deno.writeTextFile(
+    path.join(outputDir, `schema.graphql`),
+    G.printSchema(gqlSchema),
+  );
 };

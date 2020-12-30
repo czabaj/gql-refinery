@@ -1,6 +1,7 @@
-import * as path from "https://deno.land/std@0.80.0/path/mod.ts";
 import * as YAML from "https://deno.land/std@0.80.0/encoding/yaml.ts";
+import * as path from "https://deno.land/std@0.80.0/path/mod.ts";
 
+import { G } from "./deps.ts";
 import { AnyObject, HttpMethod } from "./types.d.ts";
 
 const paramRe = /\/\{(.+)\}(?=\/|$)/g;
@@ -12,11 +13,11 @@ export const convertOpenApiPathParamsToColonParams = (uri: string): string =>
 
 // currently don't care about "head" and "options"
 export const httpMethods: HttpMethod[] = [
-  "delete",
-  "get",
-  "patch",
-  "post",
-  "put",
+  `delete`,
+  `get`,
+  `patch`,
+  `post`,
+  `put`,
 ];
 
 export const isSuccessStatusCode = (statusCode: string): boolean =>
@@ -24,13 +25,13 @@ export const isSuccessStatusCode = (statusCode: string): boolean =>
 
 export const isValidGraphQLName = RegExp.prototype.test.bind(/^[A-Za-z_]\w*$/);
 
-export const loadFile = async (filePath: string): Promise<AnyObject> => {
+export const loadFile = async <T = AnyObject>(filePath: string): Promise<T> => {
   const fileContent = () => Deno.readTextFile(filePath);
   if (filePath.endsWith(".json")) {
     return JSON.parse(await fileContent());
   }
   if (/\.ya?ml$/.test(filePath)) {
-    return YAML.parse(await fileContent()) as AnyObject;
+    return YAML.parse(await fileContent()) as T;
   }
   throw new Error(
     `Cannot load file "${filePath}"./n/nOnly .json and .yml or .yaml are supported`,
@@ -42,3 +43,12 @@ export const loadFile = async (filePath: string): Promise<AnyObject> => {
  */
 export const toAbsolutePath = (p: string): string =>
   path.isAbsolute(p) ? p : path.join(Deno.cwd(), p);
+
+export const getGraphQLTypeName = (
+  outputType: G.GraphQLOutputType,
+): string | undefined =>
+  G.isObjectType(outputType)
+    ? outputType.name
+    : G.isListType(outputType)
+    ? getGraphQLTypeName(outputType.ofType)
+    : undefined;

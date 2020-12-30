@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "attachSimplePort": 9229,
+      "cwd": "${workspaceFolder}",
+      "name": "Launch Deno",
+      "outputCapture": "std",
+      "program": "${file}",
+      "request": "launch",
+      "runtimeArgs": ["run", "--inspect-brk=127.0.0.1:9229", "--allow-all"],
+      "runtimeExecutable": "deno",
+      "type": "pwa-node"
+    }
+  ]
+}

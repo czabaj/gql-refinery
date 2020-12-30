@@ -1,4 +1,4 @@
-import { assertEquals } from "testing/asserts.ts";
+import { assertEquals } from "https://deno.land/std@0.80.0/testing/asserts.ts";
 
 import { convertOpenApiPathParamsToColonParams } from "./utils.ts";
 
