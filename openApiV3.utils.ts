@@ -6,7 +6,6 @@ import {
   OpenAPIV3Object,
   OpenAPIV3Scalar,
 } from "./types.d.ts";
-import { stringify } from "./stringify.ts";
 
 /**
  * GraphQL does not support empty object, every object type must have at least one property.
@@ -114,29 +113,22 @@ export const dereferenceAndDistill = <
   Distilled,
 >(
   boundDereference: ReturnType<typeof dereference>,
-  // deno-lint-ignore no-explicit-any
-  distiller: (input: OASType, ...other: any[]) => Distilled,
+  distiller: (
+    ref: string | undefined,
+    input: OASType,
+    // deno-lint-ignore no-explicit-any
+    ...other: any[]
+  ) => Distilled,
 ): (
   input: OASType | OpenAPIV3.ReferenceObject,
   ...other: ExtraArgs<typeof distiller>
 ) => Distilled => {
-  // deno-lint-ignore no-explicit-any
-  const updateTitle = (R as any).over(R.lensProp(`title`));
-  const lastJsonPointerPathSegment = (ref: string) =>
-    R.last(JsonPointer.decode(ref));
   // resolves reference and pass dereferenced object to distiller
   const referenceDistiller = (
     ref: string,
     input: OASType,
     other: ExtraArgs<typeof distiller>,
-  ) =>
-    distiller(
-      updateTitle(
-        (title?: string) => title || lastJsonPointerPathSegment(ref),
-        input,
-      ),
-      ...other,
-    );
+  ) => distiller(ref, input, ...other);
   // results of reference distillation is memoized by reference path
   const memoizedReferenceDistiller = R.memoizeWith(
     R.identity,
@@ -146,74 +138,9 @@ export const dereferenceAndDistill = <
     const [dereferenced, ref] = boundDereference<OASType>(input);
     return ref
       ? memoizedReferenceDistiller(ref, dereferenced, other)
-      : distiller(dereferenced, ...other);
+      : distiller(undefined, dereferenced, ...other);
   };
 };
 
-type PropertyData = {
-  required: boolean;
-  schema: OpenAPIV3.SchemaObject;
-};
-export const mergeObjects = (
-  objects: OpenAPIV3Object[],
-): OpenAPIV3Object => {
-  if (objects.length === 1) {
-    return objects[0];
-  }
-  const propertyDataByName = objects.flatMap(({ properties, required }) =>
-    Object.entries(properties).map(([name, schema]) =>
-      [name, { required: Boolean(required?.includes(name)), schema }] as [
-        string,
-        PropertyData,
-      ]
-    )
-  ).reduce(
-    (acc, [name, property]) => {
-      const duplicate = acc[name];
-      if (!duplicate) {
-        acc[name] = property;
-        return acc;
-      }
-      if (duplicate.schema.type !== property.schema.type) {
-        const schemes = [duplicate.schema, property.schema];
-        const types = [duplicate.schema.type, property.schema.type];
-        if (schemes.every(isScalar)) {
-          if (types.includes(`integer`) && types.includes(`number`)) {
-            duplicate.schema.type = `number`;
-          } else {
-            duplicate.schema.type = `string`;
-          }
-        } else {
-          throw new Error(
-            `Cannot merge objects with same properties of different type.
-            Conflicting property name "${name}":
-  
-            A: ${stringify(duplicate.schema, { maxDepth: 1 })}
-  
-            B: ${stringify(property.schema, { maxDepth: 1 })}
-            `,
-          );
-        }
-      }
-      if (duplicate.required && !property.required) {
-        duplicate.required = false;
-      }
-      return acc;
-    },
-    {} as Record<string, PropertyData>,
-  );
-  return Object.entries(propertyDataByName).reduce(
-    (acc, [name, propertyData]) => {
-      acc.properties[name] = propertyData.schema;
-      if (propertyData.required) {
-        acc.required!.push(name);
-      }
-      return acc;
-    },
-    {
-      properties: {},
-      required: [],
-      type: `object`,
-    } as OpenAPIV3Object,
-  );
-};
+export const lastJsonPointerPathSegment = (ref: string): string =>
+  R.last(JsonPointer.decode(ref));

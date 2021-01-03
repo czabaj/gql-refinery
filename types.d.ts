@@ -54,7 +54,9 @@ export type OpenAPIV3Scalar = OpenAPIV3.NonArraySchemaObject & {
   type: `boolean` | `integer` | `number` | `string`;
 };
 
-// deno-lint-ignore no-explicit-any
-export type ExtraArgs<Fn extends (first: any, ...extra: any[]) => any> =
+export type ExtraArgs<
   // deno-lint-ignore no-explicit-any
-  Parameters<Fn> extends [any, ...(infer Extra)] ? Extra : never;
+  Fn extends (first: any, second: any, ...extra: any[]) => any,
+> =
+  // deno-lint-ignore no-explicit-any
+  Parameters<Fn> extends [any, any, ...(infer Extra)] ? Extra : never;

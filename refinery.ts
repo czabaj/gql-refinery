@@ -12,7 +12,7 @@ import {
 } from "./utils.ts";
 
 export const convert = async (specFile: string, outputDir: string) => {
-  log(color.blue(`Loading file: ${specFile}`));
+  log(color.blue(`Loading file:\t${specFile}`));
   const content = await loadFile(specFile);
   if (!isOpenAPIV3Document(content)) {
     throw new Error(
@@ -32,19 +32,20 @@ export const convert = async (specFile: string, outputDir: string) => {
   const gqlSchema = toGraphQL(
     content,
     {
-      onOperationDistilled(path, httpMethod, operationId, fieldConfig) {
+      onOperationDistilled(url, httpMethod, operationId, fieldConfig) {
         operations.push({
           httpMethod,
           operationId,
-          path: convertOpenApiPathParamsToColonParams(path),
+          path: convertOpenApiPathParamsToColonParams(url),
           responseType: getGraphQLTypeName(fieldConfig.type),
         });
       },
     },
   );
 
-  await Deno.writeTextFile(
-    path.join(outputDir, `schema.graphql`),
-    G.printSchema(gqlSchema),
-  );
+  const gqlSchemaFileName = path.join(outputDir, `schema.graphql`);
+  log(color.blue(`Writting file:\t${gqlSchemaFileName}`));
+  await Deno.writeTextFile(gqlSchemaFileName, G.printSchema(gqlSchema));
+
+  log(color.green(`DONE`));
 };

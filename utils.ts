@@ -1,5 +1,4 @@
 import * as YAML from "https://deno.land/std@0.80.0/encoding/yaml.ts";
-import * as path from "https://deno.land/std@0.80.0/path/mod.ts";
 
 import { G } from "./deps.ts";
 import { AnyObject, HttpMethod } from "./types.d.ts";
@@ -25,6 +24,13 @@ export const isSuccessStatusCode = (statusCode: string): boolean =>
 
 export const isValidGraphQLName = RegExp.prototype.test.bind(/^[A-Za-z_]\w*$/);
 
+const invalidTokensRe = /^[^A-Za-z_]|\W+(.)?/g;
+export const toValidGraphQLName = (name: string): string =>
+  name.replace(
+    invalidTokensRe,
+    (_match, charAfter) => charAfter?.toUpperCase() || ``,
+  );
+
 export const loadFile = async <T = AnyObject>(filePath: string): Promise<T> => {
   const fileContent = () => Deno.readTextFile(filePath);
   if (filePath.endsWith(".json")) {
@@ -37,12 +43,6 @@ export const loadFile = async <T = AnyObject>(filePath: string): Promise<T> => {
     `Cannot load file "${filePath}"./n/nOnly .json and .yml or .yaml are supported`,
   );
 };
-
-/**
- * Converts relative FS path to absolute
- */
-export const toAbsolutePath = (p: string): string =>
-  path.isAbsolute(p) ? p : path.join(Deno.cwd(), p);
 
 export const getGraphQLTypeName = (
   outputType: G.GraphQLOutputType,
