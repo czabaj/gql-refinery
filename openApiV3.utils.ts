@@ -1,6 +1,5 @@
 import { JsonPointer, OpenAPIV3, R } from "./deps.ts";
 import {
-  ExtraArgs,
   OpenAPIV3Algebraic,
   OpenAPIV3Enum,
   OpenAPIV3Object,
@@ -79,6 +78,9 @@ export const isScalar = (
     type === `string`;
 };
 
+export const lastJsonPointerPathSegment = (ref: string): string =>
+  R.last(JsonPointer.decode(ref));
+
 export const resolveRef = <Dereferenced>(
   document: OpenAPIV3.Document,
   $ref: string,
@@ -108,6 +110,12 @@ export const dereference = (document: OpenAPIV3.Document) => {
   ) => [OASType, string] | [OASType];
 };
 
+type ExtraArgs<
+  // deno-lint-ignore no-explicit-any
+  Fn extends (first: any, second: any, ...extra: any[]) => any,
+> =
+  // deno-lint-ignore no-explicit-any
+  Parameters<Fn> extends [any, any, ...(infer Extra)] ? Extra : never;
 export const dereferenceAndDistill = <
   OASType,
   Distilled,
@@ -141,6 +149,3 @@ export const dereferenceAndDistill = <
       : distiller(undefined, dereferenced, ...other);
   };
 };
-
-export const lastJsonPointerPathSegment = (ref: string): string =>
-  R.last(JsonPointer.decode(ref));

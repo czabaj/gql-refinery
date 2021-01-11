@@ -1,15 +1,19 @@
 import { G, R } from "./deps.ts";
-import { stringify } from "./stringify.ts";
+import { stringify } from "./log.ts";
 
 const mergeDescriptions = (
   descriptions: Array<string | null | undefined>,
 ): string | undefined =>
   R.uniq(descriptions.filter(Boolean)).join(`. `) || undefined;
 
-type GQLObjectType = G.GraphQLObjectType | G.GraphQLInputObjectType;
+// deno-lint-ignore no-explicit-any
+type GQLObjectType = G.GraphQLObjectType<any, any> | G.GraphQLInputObjectType;
 const isGQLObject = (
   obj: G.GraphQLType,
 ): obj is GQLObjectType => G.isInputObjectType(obj) || G.isObjectType(obj);
+
+const mergeNames = (objects: GQLObjectType[]): string =>
+  objects.map((obj) => obj.name).join(`_`);
 
 const mergeFieldType = (
   a: G.GraphQLType,
@@ -41,7 +45,20 @@ const mergeFieldType = (
     return G.GraphQLList(mergeFieldType((a as any).ofType, (b as any).ofType));
   }
   if (fields.some(isGQLObject)) {
-    return mergeObjects(fields);
+    if (!fields.every(isGQLObject)) {
+      throw new Error([
+        `Atempt to merge object and non-object fields.`,
+        `A: ${stringify(a, { maxDepth: 1 })}`,
+        `B: ${stringify(b, { maxDepth: 1 })}`,
+        `Cannot merge object and non-object.`,
+      ].join(`\n`));
+    }
+    const merginInputTypes = G.isInputObjectType(a);
+    return merginInputTypes ? mergeObjects(fields) : new G.GraphQLUnionType({
+      name: mergeNames(fields),
+      // deno-lint-ignore no-explicit-any
+      types: fields as G.GraphQLObjectType<any, any>[],
+    });
   }
   // TODO: handle union types
   if (!fields.every(G.isLeafType)) {
@@ -67,19 +84,13 @@ const mergeFields = (a: GQLFieldConfig, b: GQLFieldConfig): GQLFieldConfig => ({
 
 // deno-lint-ignore no-explicit-any
 type GQLFieldMap = G.GraphQLFieldMap<any, any> | G.GraphQLInputFieldMap;
-type GQLFieldMapTuple = [GQLFieldMap, GQLFieldMap];
+const mergeTwoFieldsMap: (a: GQLFieldMap, b: GQLFieldMap) => GQLFieldMap =
+  // deno-lint-ignore no-explicit-any
+  (R as any).mergeWith(mergeFields);
 const mergeFieldsMap = (
   fieldsMap: [GQLFieldMap, ...GQLFieldMap[]],
-): GQLFieldMap => {
-  switch (fieldsMap.length) {
-    case 1:
-      return fieldsMap[0];
-    case 2:
-      return R.mergeWith(mergeFields, ...fieldsMap as GQLFieldMapTuple);
-    default:
-      return mergeFieldsMap(R.splitAt(2, fieldsMap).map(mergeFieldsMap));
-  }
-};
+): GQLFieldMap =>
+  fieldsMap.length === 1 ? fieldsMap[0] : fieldsMap.reduce(mergeTwoFieldsMap);
 
 export const mergeObjects = <
   Input extends G.GraphQLType[],
@@ -120,6 +131,6 @@ export const mergeObjects = <
       verifiedObjects.map((obj) => obj.description),
     ),
     fields,
-    name: name || verifiedObjects.map((obj) => obj.name).join(`_`),
+    name: name || mergeNames(verifiedObjects),
   });
 };
