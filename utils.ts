@@ -1,14 +1,14 @@
 import * as YAML from "https://deno.land/std@0.80.0/encoding/yaml.ts";
 
-import { G } from "./deps.ts";
+import { G, R } from "./deps.ts";
 import { AnyObject, HttpMethod } from "./types.d.ts";
 
-const paramRe = /\/\{(.+)\}(?=\/|$)/g;
 /**
  * Converts OpenAPI URL path parameters (e.g. "/{parameter}") to colon parameters (e.g. "/:parameter")
  */
-export const convertOpenApiPathParamsToColonParams = (uri: string): string =>
-  uri.replace(paramRe, `/:$1`);
+export const convertOpenApiPathParamsToColonParams: (uri: string) => string =
+  // deno-lint-ignore no-explicit-any
+  (R as any).replace(/\/\{(\w+)\}(?=\/|$)/g, `/:$1`);
 
 // currently don't care about "head" and "options"
 export const httpMethods: HttpMethod[] = [

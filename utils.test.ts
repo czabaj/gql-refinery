@@ -43,6 +43,19 @@ Deno.test({
 });
 
 Deno.test({
+  name:
+    `"convertOpenApiPathParamsToColonParams" should handle more than one parameter in path`,
+  fn() {
+    assertEquals(
+      convertOpenApiPathParamsToColonParams(
+        `/my/contract/billing/{billingId}/spreadingOptions/{monthsCount}`,
+      ),
+      `/my/contract/billing/:billingId/spreadingOptions/:monthsCount`,
+    );
+  },
+});
+
+Deno.test({
   name: `"toValidGraphQLName" should leave valid GraphQL name without change`,
   fn() {
     [`foo`, `_foo`, `FooBar`, `Foo9`, `foo__9__bar`].forEach((validName) =>
