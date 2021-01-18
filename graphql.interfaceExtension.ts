@@ -4,10 +4,12 @@ const nameKind = (value: string): G.NameNode => ({
   kind: G.Kind.NAME,
   value,
 });
+
 const namedTypeKind = (value: string): G.NamedTypeNode => ({
   kind: G.Kind.NAMED_TYPE,
   name: nameKind(value),
 });
+
 const fieldToAST = (
   // deno-lint-ignore no-explicit-any
   field: G.GraphQLField<any, any>,
@@ -16,6 +18,7 @@ const fieldToAST = (
   name: nameKind(field.name),
   type: G.parseType(field.type.toString()),
 });
+
 const interfaceToAST = (
   iface: G.GraphQLInterfaceType,
 ): G.InterfaceTypeDefinitionNode => ({
@@ -39,8 +42,9 @@ const interfaceToAST = (
  * 
  * We use GraphQL _interface_ to improve query definitions, the "FooBar" object
  * type will implement "Foo" and "Bar" interfaces and if "Foo" exists somewhere
- * else, programmer can create single "Foo" GraphQL Fragment and use it for all
- * occurences of "Foo" as well as for all types, which implements "Foo".
+ * else, programmer can create single "FooInterface" GraphQL Fragment and use
+ * it for all occurences of "Foo" as well as for all types, which implements
+ * "FooInterface".
  * 
  * We must use schema extension for this task. During GraphQL distillation, if
  * "Foo" is distilled sooner than we reach "FooBar", the "Foo" object type is
@@ -111,4 +115,5 @@ export const interfaceExtensionFactory = () => {
   };
   return { addInterfaceConnection, extendSchema };
 };
+
 export type InterfaceExtension = ReturnType<typeof interfaceExtensionFactory>;

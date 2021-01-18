@@ -1,18 +1,17 @@
 import { G, R } from "./deps.ts";
 import { stringify } from "./log.ts";
+import { GQLFieldConfig, GQLFieldMap, GQLObject } from './types.d.ts'
+
+const isGQLObject = (
+  obj: G.GraphQLType,
+): obj is GQLObject => G.isInputObjectType(obj) || G.isObjectType(obj);
 
 const mergeDescriptions = (
   descriptions: Array<string | null | undefined>,
 ): string | undefined =>
   R.uniq(descriptions.filter(Boolean)).join(`. `) || undefined;
 
-// deno-lint-ignore no-explicit-any
-type GQLObjectType = G.GraphQLObjectType<any, any> | G.GraphQLInputObjectType;
-const isGQLObject = (
-  obj: G.GraphQLType,
-): obj is GQLObjectType => G.isInputObjectType(obj) || G.isObjectType(obj);
-
-const mergeNames = (objects: GQLObjectType[]): string =>
+const mergeNames = (objects: GQLObject[]): string =>
   objects.map((obj) => obj.name).join(`_`);
 
 const mergeFieldType = (
@@ -72,18 +71,13 @@ const mergeFieldType = (
   return G.GraphQLString;
 };
 
-type GQLFieldConfig =
-  // deno-lint-ignore no-explicit-any
-  | G.GraphQLFieldConfig<any, any>
-  | G.GraphQLInputFieldConfig;
+
 const mergeFields = (a: GQLFieldConfig, b: GQLFieldConfig): GQLFieldConfig => ({
   description: mergeDescriptions([a.description, b.description]),
   // deno-lint-ignore no-explicit-any
   type: mergeFieldType(a.type, b.type) as any,
 });
 
-// deno-lint-ignore no-explicit-any
-type GQLFieldMap = G.GraphQLFieldMap<any, any> | G.GraphQLInputFieldMap;
 const mergeTwoFieldsMap: (a: GQLFieldMap, b: GQLFieldMap) => GQLFieldMap =
   // deno-lint-ignore no-explicit-any
   (R as any).mergeWith(mergeFields);
@@ -109,11 +103,11 @@ export const mergeObjects = <
       stringify(objects, { maxDepth: 1 }),
     ].join(``));
   }
-  const verifiedObjects = objects as GQLObjectType[];
+  const verifiedObjects = objects as GQLObject[];
   if (verifiedObjects.length === 1) {
     console.warn(
-      `Merging of single object just returns the only object meged.`,
-      `Only single schema composition indicates some error in your specification file.`,
+      `Merging of single object just returns the single object.`,
+      `Single schema composition indicates some error in your specification file.`,
     );
     // deno-lint-ignore no-explicit-any
     return verifiedObjects[0] as any;
