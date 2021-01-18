@@ -1,5 +1,4 @@
 import { G, OpenAPIV3 } from "./deps.ts";
-export type AnyObject = Record<string, unknown>;
 
 type ParentObjectName = string;
 type FieldName = string;

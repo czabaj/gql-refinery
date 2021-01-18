@@ -1,7 +1,7 @@
 import * as YAML from "https://deno.land/std@0.80.0/encoding/yaml.ts";
 
 import { G, R } from "./deps.ts";
-import { AnyObject, HttpMethod } from "./types.d.ts";
+import { HttpMethod } from "./types.d.ts";
 
 /**
  * Converts OpenAPI URL path parameters (e.g. "/{parameter}") to colon parameters (e.g. "/:parameter")
@@ -31,7 +31,9 @@ export const toValidGraphQLName = (name: string): string =>
     (_match, charAfter) => charAfter?.toUpperCase() || ``,
   );
 
-export const loadFile = async <T = AnyObject>(filePath: string): Promise<T> => {
+export const loadFile = async <T = Record<string, unknown>>(
+  filePath: string,
+): Promise<T> => {
   const fileContent = () => Deno.readTextFile(filePath);
   if (filePath.endsWith(".json")) {
     return JSON.parse(await fileContent());
