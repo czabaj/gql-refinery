@@ -1,4 +1,4 @@
-import * as YAML from "https://deno.land/std@0.80.0/encoding/yaml.ts";
+import snakeCase from "https://raw.githubusercontent.com/lodash/lodash/master/snakeCase.js";
 
 import { G, R } from "./deps.ts";
 import { HttpMethod } from "./types.d.ts";
@@ -9,6 +9,15 @@ import { HttpMethod } from "./types.d.ts";
 export const convertOpenApiPathParamsToColonParams: (uri: string) => string =
   // deno-lint-ignore no-explicit-any
   (R as any).replace(/\/\{(\w+)\}(?=\/|$)/g, `/:$1`);
+
+export const getGraphQLTypeName = (
+  outputType: G.GraphQLOutputType,
+): string | undefined =>
+  G.isObjectType(outputType)
+    ? outputType.name
+    : G.isListType(outputType)
+    ? getGraphQLTypeName(outputType.ofType)
+    : undefined;
 
 // currently don't care about "head" and "options"
 export const httpMethods: HttpMethod[] = [
@@ -24,33 +33,15 @@ export const isSuccessStatusCode = (statusCode: string): boolean =>
 
 export const isValidGraphQLName = RegExp.prototype.test.bind(/^[A-Za-z_]\w*$/);
 
+// deno-lint-ignore no-explicit-any
+export const toUpperSnakeCase = (R as any).compose(
+  R.toUpper,
+  snakeCase,
+);
+
 const invalidTokensRe = /^[^A-Za-z_]|\W+(.)?/g;
 export const toValidGraphQLName = (name: string): string =>
   name.replace(
     invalidTokensRe,
     (_match, charAfter) => charAfter?.toUpperCase() || ``,
   );
-
-export const loadFile = async <T = Record<string, unknown>>(
-  filePath: string,
-): Promise<T> => {
-  const fileContent = () => Deno.readTextFile(filePath);
-  if (filePath.endsWith(".json")) {
-    return JSON.parse(await fileContent());
-  }
-  if (/\.ya?ml$/.test(filePath)) {
-    return YAML.parse(await fileContent()) as T;
-  }
-  throw new Error(
-    `Cannot load file "${filePath}"./n/nOnly .json and .yml or .yaml are supported`,
-  );
-};
-
-export const getGraphQLTypeName = (
-  outputType: G.GraphQLOutputType,
-): string | undefined =>
-  G.isObjectType(outputType)
-    ? outputType.name
-    : G.isListType(outputType)
-    ? getGraphQLTypeName(outputType.ofType)
-    : undefined;

@@ -49,7 +49,7 @@ const interfaceToAST = (
  * We must use schema extension for this task. During GraphQL distillation, if
  * "Foo" is distilled sooner than we reach "FooBar", the "Foo" object type is
  * already created, but we need the "Foo" object to self-extend "FooInterface".
- * Via extension, we can modify already created GraphQL types.
+ * Via schema extension, we can modify already created GraphQL types.
  */
 export const interfaceExtensionFactory = () => {
   type InterfaceName = string;

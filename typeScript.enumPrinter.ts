@@ -1,12 +1,5 @@
-import snakeCase from "https://raw.githubusercontent.com/lodash/lodash/master/snakeCase.js";
-import { R } from "./deps.ts";
-import { Enums } from './types.d.ts'
-
-// deno-lint-ignore no-explicit-any
-export const toUpperSnakeCase = (R as any).compose(
-  R.toUpper,
-  snakeCase,
-);
+import { Enums } from "./types.d.ts";
+import { toUpperSnakeCase } from "./utils.ts";
 
 const printEnum = (name: string, values: string[]): string =>
   `enum ${name} {
