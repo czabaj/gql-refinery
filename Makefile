@@ -4,4 +4,10 @@ run:
 
 test:
 	deno test --allow-read=./__fixtures__ $(file)
+
+lock:
+	deno cache --lock=lock.json --lock-write deps.ts
+
+install:
+	deno cache --reload --lock=lock.json deps.ts
 	
