@@ -2,7 +2,7 @@ import { Enums } from "./types.d.ts";
 import { toUpperSnakeCase } from "./utils.ts";
 
 const printEnum = (name: string, values: string[]): string =>
-  `enum ${name} {
+  `export enum ${name} {
 ${values.map((v) => `  ${toUpperSnakeCase(v)} = "${v}",`).join(`\n`)}
 }`;
 
