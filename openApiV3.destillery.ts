@@ -460,17 +460,19 @@ export const toGraphQL = (
   );
   const { Mutation, Query } = Object.entries(document.paths).reduce(
     ((acc, [urlPath, pathItemObject]) => {
-      httpMethods.forEach((httpMethod) => {
-        if (httpMethod in pathItemObject) {
-          const { fieldConfig, fieldName } = boundDistillOperation(
-            urlPath,
-            httpMethod,
-            pathItemObject[httpMethod] as OpenAPIV3.OperationObject,
-          );
-          acc[httpMethod === `get` ? `Query` : `Mutation`][fieldName] =
-            fieldConfig;
-        }
-      });
+      if (pathItemObject) {
+        httpMethods.forEach((httpMethod) => {
+          if (httpMethod in pathItemObject) {
+            const { fieldConfig, fieldName } = boundDistillOperation(
+              urlPath,
+              httpMethod,
+              pathItemObject[httpMethod] as OpenAPIV3.OperationObject,
+            );
+            acc[httpMethod === `get` ? `Query` : `Mutation`][fieldName] =
+              fieldConfig;
+          }
+        });
+      }
       return acc;
     }),
     { Mutation: {}, Query: {} } as {
