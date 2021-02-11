@@ -5,6 +5,9 @@ type FieldName = string;
 type ChildObjectName = string;
 type GraphQLInvalidFieldName = string;
 
+export type BodyArg = `body`;
+export type NonBodyArg = `cookie` | `header` | `path` | `query`;
+
 export type Enums = Map<string, string[]>;
 
 export type PossibleType = {
@@ -23,6 +26,10 @@ export type ApiArtifacts = {
     operationId: string;
     path: string;
     responseType?: string;
+    parameters?: Array<{
+      in: NonBodyArg;
+      name: string;
+    }>;
   }>;
   possibleTypes: Record<
     string,
@@ -30,14 +37,14 @@ export type ApiArtifacts = {
   >;
 };
 
-export type BODY_ARG = `body`;
 export type DistilledOperationParameter = {
   description?: string;
-  in: BODY_ARG | `cookie` | `header` | `path` | `query`;
+  in: BodyArg | NonBodyArg;
   /**
    * Response body uses reserved name `body`
    */
-  name: BODY_ARG | string;
+  name: BodyArg | string;
+  originalName?: string;
   required: boolean;
   type: G.GraphQLInputType;
 };

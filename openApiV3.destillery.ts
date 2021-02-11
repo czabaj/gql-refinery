@@ -5,6 +5,7 @@ import {
 } from "./graphql.interfaceExtension.ts";
 import { mergeObjects } from "./graphql.mergeObjects.ts";
 import {
+  createOneOf,
   dereference,
   dereferenceAndDistill,
   emptySchemaObject,
@@ -19,7 +20,7 @@ import {
 } from "./openApiV3.utils.ts";
 import { stringify } from "./log.ts";
 import {
-  BODY_ARG,
+  BodyArg,
   DistilledOperationParameter,
   HttpMethod,
   OpenAPIV3Enum,
@@ -47,6 +48,7 @@ export type DistillationHooks = {
     operationId: string,
     // deno-lint-ignore no-explicit-any
     fieldConfig: G.GraphQLFieldConfig<any, any, any>,
+    distilledArguments?: DistilledOperationParameter[],
   ): void;
   onPropertyRenamed?(
     objectName: string,
@@ -279,7 +281,7 @@ const distillOutputType = (
   return boundDistillOutputType;
 };
 
-const BODY: BODY_ARG = `body`;
+const BODY: BodyArg = `body`;
 const distillArguments = (
   context: Context,
   boundDistillInputType: ReturnType<typeof distillInputType>,
@@ -303,9 +305,11 @@ const distillArguments = (
     return {
       description: parameter.description,
       in: parameter.in,
-      name,
       required: Boolean(parameter.required),
       type: required ? G.GraphQLNonNull(type) : type,
+      ...(isValidGraphQLName(name)
+        ? { name }
+        : { name: toValidGraphQLName(name), originalName: name }),
     } as DistilledOperationParameter;
   });
 
@@ -346,6 +350,7 @@ export const distillOperation = (
     path: string,
     httpMethod: HttpMethod,
     operation: OpenAPIV3.OperationObject,
+    parameters?: Array<OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject>,
   ): {
     // deno-lint-ignore no-explicit-any
     fieldConfig: G.GraphQLFieldConfig<any, any, any>;
@@ -382,12 +387,6 @@ export const distillOperation = (
         stringify(operation, { maxDepth: 1 })
       }\n\nAbove operation does not contain definition of success response.`);
     }
-    if (groupedResponses!.success!.length > 1) {
-      throw new Error(`Currently only single success response is supported.
-      ${
-        stringify(operation, { maxDepth: 1 })
-      }\n\nAbove operation contains more than one success response definition, which currently is not supported.`);
-    }
     // we generally do not need process error resposnes, but it might be necessary to call
     // DistillationHooks on all objects in error responses
     groupedResponses!.error?.forEach((response) => {
@@ -401,9 +400,16 @@ export const distillOperation = (
     const distilledArguments = boundDistillArguments(
       operationId,
       operation.requestBody,
-      operation.parameters,
+      ([] as Array<
+        OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject | undefined
+      >).concat(parameters, operation.parameters).filter(Boolean) as Array<
+        OpenAPIV3.ParameterObject | OpenAPIV3.ReferenceObject
+      >,
     );
-    const successResponse = groupedResponses!.success![0];
+    const successResponses = groupedResponses!.success!.map(
+      // deno-lint-ignore no-explicit-any
+      (R.compose as any)(graphqlCompliantMediaType, boundDereference),
+    ) as Array<OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject>;
     // deno-lint-ignore no-explicit-any
     const fieldConfig: G.GraphQLFieldConfig<any, any, any> = {
       args: distilledArguments &&
@@ -415,14 +421,20 @@ export const distillOperation = (
         .join(`\n\n`),
       extensions: { distilledArguments },
       type: boundDistillOutputType(
-        graphqlCompliantMediaType(
-          boundDereference<OpenAPIV3.ResponseObject>(successResponse)[0],
-        ),
+        successResponses.length === 1
+          ? successResponses[0]
+          : createOneOf(successResponses),
         operationId,
       ),
     };
 
-    onOperationDistilled?.(path, httpMethod, operationId, fieldConfig);
+    onOperationDistilled?.(
+      path,
+      httpMethod,
+      operationId,
+      fieldConfig,
+      distilledArguments,
+    );
     return {
       fieldConfig,
       fieldName: operationId,
@@ -461,12 +473,14 @@ export const toGraphQL = (
   const { Mutation, Query } = Object.entries(document.paths).reduce(
     ((acc, [urlPath, pathItemObject]) => {
       if (pathItemObject) {
+        const { parameters } = pathItemObject;
         httpMethods.forEach((httpMethod) => {
           if (httpMethod in pathItemObject) {
             const { fieldConfig, fieldName } = boundDistillOperation(
               urlPath,
               httpMethod,
               pathItemObject[httpMethod] as OpenAPIV3.OperationObject,
+              parameters,
             );
             acc[httpMethod === `get` ? `Query` : `Mutation`][fieldName] =
               fieldConfig;

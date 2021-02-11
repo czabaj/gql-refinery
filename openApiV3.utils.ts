@@ -149,3 +149,9 @@ export const dereferenceAndDistill = <
       : distiller(undefined, dereferenced, ...other);
   };
 };
+
+export const createOneOf = (
+  objects: Array<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject>,
+): OpenAPIV3Algebraic => ({
+  oneOf: objects,
+});

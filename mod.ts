@@ -2,7 +2,7 @@ import { G, R } from "./deps.ts";
 import { stringify } from "./log.ts";
 import { toGraphQL } from "./openApiV3.destillery.ts";
 import { isOpenAPIV3Document } from "./openApiV3.utils.ts";
-import { ApiArtifacts, Enums, PossibleType } from "./types.d.ts";
+import { ApiArtifacts, Enums, NonBodyArg, PossibleType } from "./types.d.ts";
 import {
   convertOpenApiPathParamsToColonParams,
   getGraphQLTypeName,
@@ -121,17 +121,42 @@ export const convert = async (openApi: Record<string, unknown>) => {
           originalName
         ] = changedName;
       },
-      onOperationDistilled(url, httpMethod, operationId, fieldConfig) {
+      onOperationDistilled(
+        url,
+        httpMethod,
+        operationId,
+        fieldConfig,
+        parameters,
+      ) {
+        const nonBodyParameters = parameters?.reduce(
+          (acc, param) => {
+            if (param.in !== "body") {
+              acc.push(
+                {
+                  in: param.in,
+                  name: param.name,
+                  originalName: param.originalName,
+                },
+              );
+            }
+            return acc;
+          },
+          [] as Array<{ in: NonBodyArg; name: string; originalName?: string }>,
+        );
+
         operations.push({
           httpMethod,
           operationId,
           path: convertOpenApiPathParamsToColonParams(url),
           responseType: getGraphQLTypeName(fieldConfig.type),
+          parameters: R.isEmpty(nonBodyParameters)
+            ? undefined
+            : nonBodyParameters,
         });
       },
     },
   );
-  
+
   const possibleTypes = await getPossibleTypes(gqlSchema);
   return {
     apiArtifacts: { ...apiArtifacts, possibleTypes } as ApiArtifacts,
