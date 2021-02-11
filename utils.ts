@@ -13,11 +13,12 @@ export const convertOpenApiPathParamsToColonParams: (uri: string) => string =
 export const getGraphQLTypeName = (
   outputType: G.GraphQLOutputType,
 ): string | undefined =>
-  G.isObjectType(outputType)
-    ? outputType.name
-    : G.isListType(outputType)
-    ? getGraphQLTypeName(outputType.ofType)
-    : undefined;
+  // deno-lint-ignore no-explicit-any
+  (outputType as any).ofType
+    ? // deno-lint-ignore no-explicit-any
+      getGraphQLTypeName((outputType as any).ofType)
+    : // deno-lint-ignore no-explicit-any
+      (outputType as any).name;
 
 // currently don't care about "head" and "options"
 export const httpMethods: HttpMethod[] = [

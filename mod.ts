@@ -105,8 +105,9 @@ export const convert = async (openApi: Record<string, unknown>) => {
       onObjectDistilled(name, gqlObject) {
         const childObjectTypes = Object.entries(gqlObject.getFields()).reduce(
           (acc, [key, field]) => {
-            if (G.isObjectType(field.type)) {
-              acc.push([key, field.type.name]);
+            const fieldTypeName = getGraphQLTypeName(field.type);
+            if (fieldTypeName) {
+              acc.push([key, fieldTypeName]);
             }
             return acc;
           },

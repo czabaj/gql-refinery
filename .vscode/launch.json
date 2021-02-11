@@ -2,15 +2,28 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "attachSimplePort": 9229,
+      "name": "Attach to Deno",
+      "type": "node",
+      "request": "attach",
+      "port": 9229
+    },
+    {
       "cwd": "${workspaceFolder}",
-      "name": "Launch Deno",
+      "name": "Debug run",
       "outputCapture": "std",
+      "port": 9229,
       "program": "${file}",
       "request": "launch",
-      "runtimeArgs": ["run", "--inspect-brk=127.0.0.1:9229", "--allow-all"],
+      "runtimeArgs": [
+        "run",
+        "--inspect-brk",
+        "--allow-all",
+        "cli.ts",
+        "--outputDir=./tmp",
+        "./__fixtures__/gate_api.yaml"
+      ],
       "runtimeExecutable": "deno",
-      "type": "pwa-node"
+      "type": "node"
     }
   ]
 }
