@@ -17,6 +17,8 @@ export const getGraphQLTypeName = (
   (outputType as any).ofType
     ? // deno-lint-ignore no-explicit-any
       getGraphQLTypeName((outputType as any).ofType)
+    : G.isScalarType(outputType)
+    ? undefined
     : // deno-lint-ignore no-explicit-any
       (outputType as any).name;
 
