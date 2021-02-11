@@ -408,7 +408,7 @@ export const distillOperation = (
     );
     const successResponses = groupedResponses!.success!.map(
       // deno-lint-ignore no-explicit-any
-      (R.compose as any)(graphqlCompliantMediaType, boundDereference),
+      (R.compose as any)(graphqlCompliantMediaType, R.head, boundDereference),
     ) as Array<OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject>;
     // deno-lint-ignore no-explicit-any
     const fieldConfig: G.GraphQLFieldConfig<any, any, any> = {
