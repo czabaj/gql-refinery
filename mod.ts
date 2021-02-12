@@ -51,7 +51,7 @@ const getPossibleTypes = async (
     b.uniqProperties.length - a.uniqProperties.length;
   const toName = ({ name }: { name: string }) => name;
   return types.reduce(
-    (acc, { name, possibleTypes: possTypes }) => {
+    (acc, { kind, name, possibleTypes: possTypes }) => {
       if (possTypes) {
         const withUniqProps = possTypes.map((
           { fields, name },
@@ -70,7 +70,10 @@ const getPossibleTypes = async (
             return { name, uniqProperties };
           },
         );
-        acc[name] = withUniqProps.sort(byUniqPropetiesLengthDesc);
+        acc[name] = {
+          kind: kind as `INTERFACE` | `UNION`,
+          possibleTypes: withUniqProps.sort(byUniqPropetiesLengthDesc),
+        };
       }
       return acc;
     },
@@ -144,7 +147,6 @@ export const convert = async (openApi: Record<string, unknown>) => {
           },
           [] as Array<{ in: NonBodyArg; name: string; originalName?: string }>,
         );
-
         operations.push({
           httpMethod,
           operationId,
@@ -157,7 +159,6 @@ export const convert = async (openApi: Record<string, unknown>) => {
       },
     },
   );
-
   const possibleTypes = await getPossibleTypes(gqlSchema);
   return {
     apiArtifacts: { ...apiArtifacts, possibleTypes } as ApiArtifacts,
