@@ -35,7 +35,7 @@ export type ApiArtifacts = {
     string,
     {
       kind: `INTERFACE` | `UNION`;
-      possibleTypes: Array<PossibleType>;
+      possibleTypes: PossibleType[];
     }
   >;
 };

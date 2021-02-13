@@ -5,6 +5,9 @@ run:
 test:
 	deno test --allow-read=./__fixtures__ $(file)
 
+bundle:
+	deno bundle mod.ts dist/gqlRefinery.js
+
 lock:
 	deno cache --lock=lock.json --lock-write deps.ts
 
