@@ -8,23 +8,53 @@ import {
   getGraphQLTypeName,
 } from "./utils.ts";
 
-const getIntrospectionQueryResult = (
-  schema: G.GraphQLSchema,
-): Promise<{
+type TypeIntrospection = {
+  kind: string;
+  name: string;
+  ofType?: TypeIntrospection;
+};
+type IntrospectionResult = {
   data: {
     __schema: {
       types: {
+        fields?: Array<{
+          name: string;
+          type: TypeIntrospection;
+        }>;
         kind: string;
         name: string;
         possibleTypes?: { name: string; fields: { name: string }[] }[];
       }[];
     };
   };
-}> => {
+};
+
+const getIntrospectionQueryResult = (
+  schema: G.GraphQLSchema,
+): Promise<IntrospectionResult> => {
   const document = G.parse(`
   {
     __schema {
       types {
+        fields {
+          name
+          type {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType {
+                  kind
+                  name
+                }
+              }
+            }
+          }
+        }
         kind
         name
         possibleTypes {
@@ -41,12 +71,9 @@ const getIntrospectionQueryResult = (
   return (G as any).execute({ document, schema });
 };
 
-const getPossibleTypes = async (
-  gqlSchema: G.GraphQLSchema,
-): Promise<ApiArtifacts["possibleTypes"]> => {
-  const { data: { __schema: { types } } } = await getIntrospectionQueryResult(
-    gqlSchema,
-  );
+const getPossibleTypes = (
+  { data: { __schema: { types } } }: IntrospectionResult,
+): ApiArtifacts["possibleTypes"] => {
   const byUniqPropetiesLengthDesc = (a: PossibleType, b: PossibleType) =>
     b.uniqProperties.length - a.uniqProperties.length;
   const toName = ({ name }: { name: string }) => name;
@@ -81,6 +108,35 @@ const getPossibleTypes = async (
   );
 };
 
+const getObjectType = (
+  type: TypeIntrospection,
+): { kind: `OBJECT`; name: string } | undefined =>
+  type.kind === `OBJECT`
+    ? // deno-lint-ignore no-explicit-any
+      type as any
+    : type.ofType
+    ? getObjectType(type.ofType)
+    : undefined;
+const getObjectsRelation = (
+  { data: { __schema: { types } } }: IntrospectionResult,
+): ApiArtifacts["objectsRelation"] => {
+  return types.reduce((objectsRelation, type) => {
+    if (type.kind === `OBJECT` && !type.name.startsWith(`__`)) {
+      const fieldsToTypenameMap = type.fields!.reduce((acc, child) => {
+        const childObjectType = getObjectType(child.type);
+        if (childObjectType) {
+          acc[child.name] = childObjectType.name;
+        }
+        return acc;
+      }, {} as Record<string, string>);
+      if (!R.isEmpty(fieldsToTypenameMap)) {
+        objectsRelation[type.name] = fieldsToTypenameMap;
+      }
+    }
+    return objectsRelation;
+  }, {} as ApiArtifacts["objectsRelation"]);
+};
+
 export const convert = async (openApi: Record<string, unknown>) => {
   if (!isOpenAPIV3Document(openApi)) {
     throw new Error(
@@ -90,35 +146,15 @@ export const convert = async (openApi: Record<string, unknown>) => {
     );
   }
 
-  const apiArtifacts: ApiArtifacts = {
-    objectsRelation: {},
-    objectsRename: {},
-    operations: [],
-    possibleTypes: {},
-  };
-  const { objectsRename, objectsRelation, operations } = apiArtifacts;
   const enums: Enums = new Map();
+  const objectsRename: ApiArtifacts["objectsRename"] = {};
+  const operations: ApiArtifacts["operations"] = [];
 
   const gqlSchema = toGraphQL(
     openApi,
     {
       onEnumDistilled(name, source) {
         enums.set(name, source.enum);
-      },
-      onObjectDistilled(name, gqlObject) {
-        const childObjectTypes = Object.entries(gqlObject.getFields()).reduce(
-          (acc, [key, field]) => {
-            const fieldTypeName = getGraphQLTypeName(field.type);
-            if (fieldTypeName) {
-              acc.push([key, fieldTypeName]);
-            }
-            return acc;
-          },
-          [] as [string, string][],
-        );
-        if (!R.isEmpty(childObjectTypes)) {
-          objectsRelation[name] = Object.fromEntries(childObjectTypes);
-        }
       },
       onPropertyRenamed(objectName, originalName, changedName) {
         (objectsRename[objectName] || (objectsRename[objectName] = {}))[
@@ -159,9 +195,14 @@ export const convert = async (openApi: Record<string, unknown>) => {
       },
     },
   );
-  const possibleTypes = await getPossibleTypes(gqlSchema);
+  const introspectionResult = await getIntrospectionQueryResult(gqlSchema);
   return {
-    apiArtifacts: { ...apiArtifacts, possibleTypes } as ApiArtifacts,
+    apiArtifacts: {
+      objectsRelation: getObjectsRelation(introspectionResult),
+      objectsRename,
+      operations,
+      possibleTypes: getPossibleTypes(introspectionResult),
+    } as ApiArtifacts,
     enums,
     openApi,
     gqlSchema,

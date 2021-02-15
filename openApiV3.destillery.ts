@@ -37,11 +37,6 @@ export type DistillationHooks = {
     name: string,
     source: OpenAPIV3Enum,
   ): void;
-  onObjectDistilled?(
-    name: string,
-    // deno-lint-ignore no-explicit-any
-    fieldConfig: G.GraphQLObjectType<any, any>,
-  ): void;
   onOperationDistilled?(
     path: string,
     httpMethod: HttpMethod,
@@ -189,8 +184,7 @@ const distillOutputType = (
   context: Context,
   boundDistillLeafType: ReturnType<typeof distillLeafType>,
 ) => {
-  const { boundDereference, hooks: { onObjectDistilled }, interfaceExtension } =
-    context;
+  const { boundDereference, interfaceExtension } = context;
 
   const boundDistillOutputType: (
     schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject,
@@ -272,7 +266,6 @@ const distillOutputType = (
           ),
           name,
         });
-        onObjectDistilled?.(name, objectType);
         return objectType;
       }
       return boundDistillLeafType(schema, parentName);
