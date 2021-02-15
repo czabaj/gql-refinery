@@ -108,22 +108,23 @@ const getPossibleTypes = (
   );
 };
 
-const getObjectType = (
+const unwrapOutputType = (
   type: TypeIntrospection,
-): { kind: `OBJECT`; name: string } | undefined =>
-  type.kind === `OBJECT`
+): { kind: `OBJECT` | `UNION`; name: string } | undefined =>
+  type.kind === `OBJECT` || type.kind === `UNION`
     ? // deno-lint-ignore no-explicit-any
       type as any
     : type.ofType
-    ? getObjectType(type.ofType)
+    ? unwrapOutputType(type.ofType)
     : undefined;
 const getObjectsRelation = (
   { data: { __schema: { types } } }: IntrospectionResult,
 ): ApiArtifacts["objectsRelation"] => {
+  const ignoreObjectNameRe = /^(?:Mutation|Query|Subscription|__.+)$/;
   return types.reduce((objectsRelation, type) => {
-    if (type.kind === `OBJECT` && !type.name.startsWith(`__`)) {
+    if (type.kind === `OBJECT` && !ignoreObjectNameRe.test(type.name)) {
       const fieldsToTypenameMap = type.fields!.reduce((acc, child) => {
-        const childObjectType = getObjectType(child.type);
+        const childObjectType = unwrapOutputType(child.type);
         if (childObjectType) {
           acc[child.name] = childObjectType.name;
         }
