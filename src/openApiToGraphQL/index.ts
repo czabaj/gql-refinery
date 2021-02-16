@@ -146,7 +146,7 @@ const distillInputType = (
             ].join(`\n`),
           );
         }
-        return mergeObjects(types, name);
+        return mergeObjects(types, name && `${name}Input`);
       }
       if (isList(schema)) {
         return new G.GraphQLList(

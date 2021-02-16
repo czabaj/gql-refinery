@@ -125,6 +125,6 @@ export const mergeObjects = <
       verifiedObjects.map((obj) => obj.description),
     ),
     fields,
-    name: mergeNames(verifiedObjects),
+    name: name || mergeNames(verifiedObjects),
   });
 };
