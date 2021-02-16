@@ -1,0 +1,15 @@
+{
+  "bin": {
+    "refine-oas": "./node/cli.mjs"
+  },
+  "dependencies": {
+    "js-yaml": "^4.0.0",
+    "minimist": "^1.2.5"
+  },
+  "engines": {
+    "node": ">= 12.x"
+  },
+  "name": "gql-refinery",
+  "type": "module",
+  "version": "0.0.4"
+}

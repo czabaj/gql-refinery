@@ -10,11 +10,10 @@ test:
 	deno test --allow-read=./__fixtures__ $(file)
 
 bundle:
-	deno bundle mod.ts dist/gqlRefinery.js
+	deno bundle src/mod.ts node/mod.mjs
 
 lock:
 	deno cache --lock=lock.json --lock-write deps.ts
 
 install:
 	deno cache --reload --lock=lock.json deps.ts
-	

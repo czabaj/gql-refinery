@@ -1,222 +1,72 @@
-import { G, R } from "../deps.ts";
-import { stringify } from "./log.ts";
-import { toGraphQL } from "./openApiToGraphQL/index.ts";
-import { isOpenAPIV3Document } from "./openApiToGraphQL/utils.ts";
-import { ApiArtifacts, Enums, NonBodyArg, PossibleType } from "./types.d.ts";
-import {
-  oasPathParamsToColonParams,
-} from "./utils/oasPathParamsToColonParams.ts";
+import { join } from "https://deno.land/std@0.80.0/path/mod.ts";
 
-export const getGraphQLTypeName = (
-  outputType: G.GraphQLOutputType,
-): string | undefined =>
-  // deno-lint-ignore no-explicit-any
-  (outputType as any).ofType
-    ? // deno-lint-ignore no-explicit-any
-      getGraphQLTypeName((outputType as any).ofType)
-    : G.isScalarType(outputType)
-    ? undefined
-    : // deno-lint-ignore no-explicit-any
-      (outputType as any).name;
+import { G, OpenAPIV3 } from "../deps.ts";
+import { color, log, stringify } from "./log.ts";
+import { refine } from "./refine.ts";
+import { printEnums } from "./typeScript/enumPrinter.ts";
+import { ApiArtifacts, Enums } from "./types.d.ts";
 
-type TypeIntrospection = {
-  kind: string;
-  name: string;
-  ofType?: TypeIntrospection;
+export type Args = {
+  _: [string];
+  outputDir: string;
 };
-type IntrospectionResult = {
-  data: {
-    __schema: {
-      types: {
-        fields?: Array<{
-          name: string;
-          type: TypeIntrospection;
-        }>;
-        kind: string;
-        name: string;
-        possibleTypes?: { name: string; fields: { name: string }[] }[];
-      }[];
-    };
+export type PlatformSpecificApi = {
+  loadFile: (path: string) => Promise<Record<string, unknown>>;
+  writeTextFile: (path: string, data: string) => Promise<void>;
+};
+
+export const main = async (
+  { _: [specFile], outputDir }: Args,
+  { loadFile, writeTextFile }: PlatformSpecificApi,
+) => {
+  const writeOutputFile = (path: string, data: string) => {
+    log(color.blue(`Writting file:\t${path}`));
+    return writeTextFile(path, data);
   };
-};
 
-const getIntrospectionQueryResult = (
-  schema: G.GraphQLSchema,
-): Promise<IntrospectionResult> => {
-  const document = G.parse(`
-  {
-    __schema {
-      types {
-        fields {
-          name
-          type {
-            kind
-            name
-            ofType {
-              kind
-              name
-              ofType {
-                kind
-                name
-                ofType {
-                  kind
-                  name
-                }
-              }
-            }
-          }
-        }
-        kind
-        name
-        possibleTypes {
-          name
-          fields(includeDeprecated: true) {
-            name
-          }
-        }
-      }
-    }
-  }
-`);
-  // deno-lint-ignore no-explicit-any
-  return (G as any).execute({ document, schema });
-};
+  log(color.blue(`Loading file:\t${specFile}`));
 
-const getPossibleTypes = (
-  { data: { __schema: { types } } }: IntrospectionResult,
-): ApiArtifacts["possibleTypes"] => {
-  const byUniqPropetiesLengthDesc = (a: PossibleType, b: PossibleType) =>
-    b.uniqProperties.length - a.uniqProperties.length;
-  const toName = ({ name }: { name: string }) => name;
-  return types.reduce(
-    (acc, { kind, name, possibleTypes: possTypes }) => {
-      if (possTypes) {
-        const withUniqProps = possTypes.map((
-          { fields, name },
-        ) => [name, fields.map(toName)] as [string, string[]]).map(
-          ([name, properties], idx, arr) => {
-            const otherTypesProperties =
-              (R.remove(idx, 1, arr) as [string, string[]][])
-                .reduce(
-                  (acc, [, pNames]) => acc.concat(pNames),
-                  [] as string[],
-                );
-            const uniqProperties = R.difference(
-              properties,
-              otherTypesProperties,
-            );
-            return { name, uniqProperties };
-          },
-        );
-        acc[name] = {
-          kind: kind as `INTERFACE` | `UNION`,
-          possibleTypes: withUniqProps.sort(byUniqPropetiesLengthDesc),
-        };
-      }
-      return acc;
-    },
-    {} as ApiArtifacts["possibleTypes"],
+  const fileContent = await loadFile(specFile as string);
+  const { apiArtifacts, enums, gqlSchema, openApi } = await refine(
+    fileContent,
   );
-};
 
-const unwrapOutputType = (
-  type: TypeIntrospection,
-): { kind: `OBJECT` | `UNION`; name: string } | undefined =>
-  type.kind === `OBJECT` || type.kind === `UNION`
-    ? // deno-lint-ignore no-explicit-any
-      type as any
-    : type.ofType
-    ? unwrapOutputType(type.ofType)
-    : undefined;
-const getObjectsRelation = (
-  { data: { __schema: { types } } }: IntrospectionResult,
-): ApiArtifacts["objectsRelation"] => {
-  const ignoreObjectNameRe = /^(?:Mutation|Query|Subscription|__.+)$/;
-  return types.reduce((objectsRelation, type) => {
-    if (type.kind === `OBJECT` && !ignoreObjectNameRe.test(type.name)) {
-      const fieldsToTypenameMap = type.fields!.reduce((acc, child) => {
-        const childObjectType = unwrapOutputType(child.type);
-        if (childObjectType) {
-          acc[child.name] = childObjectType.name;
-        }
-        return acc;
-      }, {} as Record<string, string>);
-      if (!R.isEmpty(fieldsToTypenameMap)) {
-        objectsRelation[type.name] = fieldsToTypenameMap;
-      }
-    }
-    return objectsRelation;
-  }, {} as ApiArtifacts["objectsRelation"]);
-};
-
-export const convert = async (openApi: Record<string, unknown>) => {
-  if (!isOpenAPIV3Document(openApi)) {
-    throw new Error(
-      `File does not contain a valid OpenAPIV3 document:
-
-      ${stringify(openApi, { maxDepth: 1 })}`,
+  const writeApiArtifacts = (
+    apiArtifacts: ApiArtifacts,
+    outputDir: string,
+  ) =>
+    writeOutputFile(
+      join(outputDir, `apiArtifacts.json`),
+      stringify(apiArtifacts, null, 2),
     );
-  }
 
-  const enums: Enums = new Map();
-  const objectsRename: ApiArtifacts["objectsRename"] = {};
-  const operations: ApiArtifacts["operations"] = [];
+  const writeTsTypes = (enums: Enums, outputDir: string) =>
+    writeOutputFile(
+      join(outputDir, `tsTypes.ts`),
+      printEnums(enums),
+    );
 
-  const gqlSchema = toGraphQL(
-    openApi,
-    {
-      onEnumDistilled(name, source) {
-        enums.set(name, source.enum);
-      },
-      onPropertyRenamed(objectName, originalName, changedName) {
-        (objectsRename[objectName] || (objectsRename[objectName] = {}))[
-          originalName
-        ] = changedName;
-      },
-      onOperationDistilled(
-        url,
-        httpMethod,
-        operationId,
-        fieldConfig,
-        parameters,
-      ) {
-        const nonBodyParameters = parameters?.reduce(
-          (acc, param) => {
-            if (param.in !== "body") {
-              acc.push(
-                {
-                  in: param.in,
-                  name: param.name,
-                  originalName: param.originalName,
-                },
-              );
-            }
-            return acc;
-          },
-          [] as Array<{ in: NonBodyArg; name: string; originalName?: string }>,
-        );
-        operations.push({
-          httpMethod,
-          operationId,
-          path: oasPathParamsToColonParams(url),
-          responseType: getGraphQLTypeName(fieldConfig.type),
-          parameters: R.isEmpty(nonBodyParameters)
-            ? undefined
-            : nonBodyParameters,
-        });
-      },
-    },
-  );
-  const introspectionResult = await getIntrospectionQueryResult(gqlSchema);
-  return {
-    apiArtifacts: {
-      objectsRelation: getObjectsRelation(introspectionResult),
-      objectsRename,
-      operations,
-      possibleTypes: getPossibleTypes(introspectionResult),
-    } as ApiArtifacts,
-    enums,
-    openApi,
-    gqlSchema,
-  };
+  const writeGraphQLSchema = (gqlSchema: G.GraphQLSchema, outputDir: string) =>
+    writeOutputFile(
+      join(outputDir, `schema.graphql`),
+      G.printSchema(gqlSchema),
+    );
+
+  const writeOpenAPIJson = (
+    oasDocument: OpenAPIV3.Document,
+    outputDir: string,
+  ) =>
+    writeOutputFile(
+      join(outputDir, `openapi.json`),
+      stringify(oasDocument, null, 2),
+    );
+
+  await Promise.all([
+    writeApiArtifacts(apiArtifacts, outputDir),
+    writeGraphQLSchema(gqlSchema, outputDir),
+    writeOpenAPIJson(openApi as unknown as OpenAPIV3.Document, outputDir),
+    writeTsTypes(enums, outputDir),
+  ]);
+
+  log(color.green(`ALL DONE`));
 };
