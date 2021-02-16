@@ -90,31 +90,29 @@ const distillPropertyName = (
 
 const distillLeafType = (context: Context) => {
   const { hooks: { onEnumDistilled } } = context;
-  return dereferenceAndDistill<OpenAPIV3.SchemaObject, G.GraphQLLeafType>(
-    context.boundDereference,
-    (ref, schema, parentName: string) => {
-      if (isEnum(schema)) {
-        const name = distillName(schema.title, ref, parentName);
-        onEnumDistilled?.(name, schema);
-        // TODO: distill to GraphQLEnum if values are GraphQL compatible
-        return G.GraphQLString;
+  return (ref: string | undefined, schema: OpenAPIV3.SchemaObject, parentName: string) => {
+    if (isEnum(schema)) {
+      const name = distillName(schema.title, ref, parentName);
+      console.log("enum distilled", { title: schema.title, ref, parentName });
+      onEnumDistilled?.(name, schema);
+      // TODO: distill to GraphQLEnum if values are GraphQL compatible
+      return G.GraphQLString;
+    }
+    if (isScalar(schema)) {
+      switch (schema.type) {
+        case `boolean`:
+          return G.GraphQLBoolean;
+        case `integer`:
+          return G.GraphQLInt;
+        case `number`:
+          return G.GraphQLFloat;
+        case `string`:
+          return G.GraphQLString;
       }
-      if (isScalar(schema)) {
-        switch (schema.type) {
-          case `boolean`:
-            return G.GraphQLBoolean;
-          case `integer`:
-            return G.GraphQLInt;
-          case `number`:
-            return G.GraphQLFloat;
-          case `string`:
-            return G.GraphQLString;
-        }
-      }
-      throw new Error(`Unsupported schema in "distillLeafType" function:
+    }
+    throw new Error(`Unsupported schema in "distillLeafType" function:
       ${stringify(schema, { maxDepth: 1 })}`);
-    },
-  );
+  };
 };
 
 const distillInputType = (
@@ -181,7 +179,7 @@ const distillInputType = (
           name,
         });
       }
-      return boundDistillLeafType(schema, parentName);
+      return boundDistillLeafType(ref, schema, parentName);
     },
   );
   return boundDistillInputType;
@@ -275,7 +273,7 @@ const distillOutputType = (
         });
         return objectType;
       }
-      return boundDistillLeafType(schema, parentName);
+      return boundDistillLeafType(ref, schema, parentName);
     },
   );
   return boundDistillOutputType;
