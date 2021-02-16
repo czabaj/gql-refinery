@@ -1,12 +1,23 @@
-import { G, R } from "./deps.ts";
+import { G, R } from "../deps.ts";
 import { stringify } from "./log.ts";
-import { toGraphQL } from "./openApiV3.destillery.ts";
-import { isOpenAPIV3Document } from "./openApiV3.utils.ts";
+import { toGraphQL } from "./openApiToGraphQL/index.ts";
+import { isOpenAPIV3Document } from "./openApiToGraphQL/utils.ts";
 import { ApiArtifacts, Enums, NonBodyArg, PossibleType } from "./types.d.ts";
 import {
-  convertOpenApiPathParamsToColonParams,
-  getGraphQLTypeName,
-} from "./utils.ts";
+  oasPathParamsToColonParams,
+} from "./utils/oasPathParamsToColonParams.ts";
+
+export const getGraphQLTypeName = (
+  outputType: G.GraphQLOutputType,
+): string | undefined =>
+  // deno-lint-ignore no-explicit-any
+  (outputType as any).ofType
+    ? // deno-lint-ignore no-explicit-any
+      getGraphQLTypeName((outputType as any).ofType)
+    : G.isScalarType(outputType)
+    ? undefined
+    : // deno-lint-ignore no-explicit-any
+      (outputType as any).name;
 
 type TypeIntrospection = {
   kind: string;
@@ -187,7 +198,7 @@ export const convert = async (openApi: Record<string, unknown>) => {
         operations.push({
           httpMethod,
           operationId,
-          path: convertOpenApiPathParamsToColonParams(url),
+          path: oasPathParamsToColonParams(url),
           responseType: getGraphQLTypeName(fieldConfig.type),
           parameters: R.isEmpty(nonBodyParameters)
             ? undefined

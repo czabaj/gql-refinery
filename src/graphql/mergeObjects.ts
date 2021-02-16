@@ -1,6 +1,6 @@
-import { G, R } from "./deps.ts";
-import { stringify } from "./log.ts";
-import { GQLFieldConfig, GQLFieldMap, GQLObject } from './types.d.ts'
+import { G, R } from "../../deps.ts";
+import { stringify } from "../log.ts";
+import { GQLFieldConfig, GQLFieldMap, GQLObject } from '../types.d.ts'
 
 const isGQLObject = (
   obj: G.GraphQLType,

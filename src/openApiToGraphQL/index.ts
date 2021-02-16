@@ -1,9 +1,17 @@
-import { G, OpenAPIV3, R } from "./deps.ts";
+import { G, OpenAPIV3, R } from "../../deps.ts";
 import {
   InterfaceExtension,
   interfaceExtensionFactory,
-} from "./graphql.interfaceExtension.ts";
-import { mergeObjects } from "./graphql.mergeObjects.ts";
+} from "../graphql/interfaceExtension.ts";
+import { mergeObjects } from "../graphql/mergeObjects.ts";
+import { isValidGraphQLName, toValidGraphQLName } from '../graphql/validName.ts'
+import { stringify } from "../log.ts";
+import {
+  BodyArg,
+  DistilledOperationParameter,
+  HttpMethod,
+  OpenAPIV3Enum,
+} from "../types.d.ts";
 import {
   createOneOf,
   dereference,
@@ -16,21 +24,17 @@ import {
   isObject,
   isReference,
   isScalar,
-  lastJsonPointerPathSegment,
-} from "./openApiV3.utils.ts";
-import { stringify } from "./log.ts";
-import {
-  BodyArg,
-  DistilledOperationParameter,
-  HttpMethod,
-  OpenAPIV3Enum,
-} from "./types.d.ts";
-import {
-  httpMethods,
   isSuccessStatusCode,
-  isValidGraphQLName,
-  toValidGraphQLName,
+  lastJsonPointerPathSegment,
 } from "./utils.ts";
+
+export const httpMethods: HttpMethod[] = [
+  `delete`,
+  `get`,
+  `patch`,
+  `post`,
+  `put`,
+];
 
 export type DistillationHooks = {
   onEnumDistilled?(

@@ -1,4 +1,4 @@
-import { G, OpenAPIV3 } from "./deps.ts";
+import { G, OpenAPIV3 } from "../deps.ts";
 
 type ParentObjectName = string;
 type FieldName = string;

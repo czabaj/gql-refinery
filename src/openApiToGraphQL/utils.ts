@@ -1,10 +1,19 @@
-import { JsonPointer, OpenAPIV3, R } from "./deps.ts";
+import { JsonPointer, OpenAPIV3, R } from "../../deps.ts";
 import {
   OpenAPIV3Algebraic,
   OpenAPIV3Enum,
   OpenAPIV3Object,
   OpenAPIV3Scalar,
-} from "./types.d.ts";
+} from "../types.d.ts";
+
+export const createOneOf = (
+  objects: Array<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject>,
+): OpenAPIV3Algebraic => ({
+  oneOf: objects,
+});
+
+export const isSuccessStatusCode = (statusCode: string): boolean =>
+  statusCode.startsWith(`2`);
 
 /**
  * GraphQL does not support empty object, every object type must have at least one property.
@@ -149,9 +158,3 @@ export const dereferenceAndDistill = <
       : distiller(undefined, dereferenced, ...other);
   };
 };
-
-export const createOneOf = (
-  objects: Array<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject>,
-): OpenAPIV3Algebraic => ({
-  oneOf: objects,
-});

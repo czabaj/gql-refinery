@@ -1,12 +1,12 @@
 import { parse } from "https://deno.land/std@0.80.0/flags/mod.ts";
 import * as path from "https://deno.land/std@0.80.0/path/mod.ts";
 
-import { loadFile } from "./deno.utils.ts";
 import { G, OpenAPIV3 } from "./deps.ts";
-import { color, log, stringify } from "./log.ts";
-import { convert } from "./mod.ts";
-import { printEnums } from "./typeScript.enumPrinter.ts";
-import { ApiArtifacts, Enums } from "./types.d.ts";
+import { color, log, stringify } from "./src/log.ts";
+import { convert } from "./src/mod.ts";
+import { printEnums } from "./src/typeScript/enumPrinter.ts";
+import { ApiArtifacts, Enums } from "./src/types.d.ts";
+import { loadFile } from "./src/utils/deno.loadFile.ts";
 
 const args = parse(Deno.args, {
   default: {
@@ -58,7 +58,7 @@ const writeOpenAPIJson = (
 await Promise.all([
   writeApiArtifacts(apiArtifacts, outputDir),
   writeGraphQLSchema(gqlSchema, outputDir),
-  writeOpenAPIJson(openApi, outputDir),
+  writeOpenAPIJson(openApi as unknown as OpenAPIV3.Document, outputDir),
   writeTsTypes(enums, outputDir),
 ]);
 

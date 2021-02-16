@@ -4,13 +4,13 @@ import {
   assertNotStrictEquals,
 } from "https://deno.land/std@0.80.0/testing/asserts.ts";
 
-import { loadFile } from "./deno.utils.ts";
-import { OpenAPIV3 } from "./deps.ts";
+import { OpenAPIV3 } from "../../deps.ts";
+import { loadFile } from "../utils/deno.loadFile.ts";
 import {
   dereference,
   dereferenceAndDistill,
   resolveRef,
-} from "./openApiV3.utils.ts";
+} from "./utils.ts";
 
 const petStore = await loadFile<OpenAPIV3.Document>(
   `./__fixtures__/petstore.yaml`,

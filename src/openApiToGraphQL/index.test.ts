@@ -5,13 +5,13 @@ import {
   assertThrows,
 } from "https://deno.land/std@0.80.0/testing/asserts.ts";
 
-import { OpenAPIV3, R } from "./deps.ts";
+import { OpenAPIV3, R } from "../../deps.ts";
+import { HttpMethod } from "../types.d.ts";
 import {
   Context,
   DistillationHooks,
   distillOperation,
-} from "./openApiV3.destillery.ts";
-import { HttpMethod } from "./types.d.ts";
+} from "./index.ts";
 
 const noop = R.always(undefined);
 const simpleOperation = (operationId: string): OpenAPIV3.OperationObject => ({

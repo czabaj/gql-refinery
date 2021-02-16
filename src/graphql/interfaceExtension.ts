@@ -1,4 +1,4 @@
-import { G } from "./deps.ts";
+import { G } from "../../deps.ts";
 
 const nameKind = (value: string): G.NameNode => ({
   kind: G.Kind.NAME,
