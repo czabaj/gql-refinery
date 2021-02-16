@@ -4,7 +4,10 @@ import {
   interfaceExtensionFactory,
 } from "../graphql/interfaceExtension.ts";
 import { mergeObjects } from "../graphql/mergeObjects.ts";
-import { isValidGraphQLName, toValidGraphQLName } from '../graphql/validName.ts'
+import {
+  isValidGraphQLName,
+  toValidGraphQLName,
+} from "../graphql/validName.ts";
 import { stringify } from "../log.ts";
 import {
   BodyArg,
@@ -384,16 +387,6 @@ export const distillOperation = (
         stringify(operation, { maxDepth: 1 })
       }\n\nAbove operation does not contain definition of success response.`);
     }
-    // we generally do not need process error resposnes, but it might be necessary to call
-    // DistillationHooks on all objects in error responses
-    groupedResponses!.error?.forEach((response) => {
-      boundDistillOutputType(
-        graphqlCompliantMediaType(
-          boundDereference<OpenAPIV3.ResponseObject>(response)[0],
-        ),
-        operationId,
-      );
-    });
     const distilledArguments = boundDistillArguments(
       operationId,
       operation.requestBody,
@@ -424,6 +417,17 @@ export const distillOperation = (
         operationId,
       ),
     };
+
+    // TODO: Do not generate types from error responses!
+    // just to extract enums from the error responses,
+    // groupedResponses!.error?.forEach((response) => {
+    //   boundDistillOutputType(
+    //     graphqlCompliantMediaType(
+    //       boundDereference<OpenAPIV3.ResponseObject>(response)[0],
+    //     ),
+    //     operationId,
+    //   );
+    // });
 
     onOperationDistilled?.(
       path,
