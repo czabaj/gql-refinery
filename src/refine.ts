@@ -1,6 +1,6 @@
 import { G, R } from "../deps.ts";
 import { stringify } from "./log.ts";
-import { toGraphQL } from "./openApiToGraphQL/index.ts";
+import { GraphQLFurnace } from "./openApiToGraphQL/index.ts";
 import { isOpenAPIV3Document } from "./openApiToGraphQL/utils.ts";
 import { ApiArtifacts, Enums, NonBodyArg, PossibleType } from "./types.d.ts";
 import {
@@ -162,7 +162,7 @@ export const refine = async (openApi: Record<string, unknown>) => {
   const objectsRename: ApiArtifacts["objectsRename"] = {};
   const operations: ApiArtifacts["operations"] = [];
 
-  const gqlSchema = toGraphQL(
+  const gqlSchema = new GraphQLFurnace(
     openApi,
     {
       onEnumDistilled(name, source) {
@@ -206,7 +206,7 @@ export const refine = async (openApi: Record<string, unknown>) => {
         });
       },
     },
-  );
+  ).toGqlSchema();
   const introspectionResult = await getIntrospectionQueryResult(gqlSchema);
   return {
     apiArtifacts: {

@@ -1,7 +1,7 @@
 {
-  "https://cdn.skypack.dev/-/json-ptr@v2.0.0-Ng6coVdINbIJS2sBDQgm/dist=es2020/json-ptr.js": "a316da8c140e3c27bea74dca200a6617763572baa39929e87606cfa8ff56f31b",
-  "https://cdn.skypack.dev/-/tslib@v2.0.3-0hEAWd6VTl7IqVHQl9Uk/dist=es2020/tslib.js": "7e45857c270b790518bc7a4162d01601334dab4b558222167d1b8cff1e778993",
-  "https://cdn.skypack.dev/json-ptr": "4f7bc0d0c48cdad0c7f25dd09d63d76892a3be24bf65c030908b9acff8a5fee5",
+  "https://cdn.skypack.dev/-/json-ptr@v2.0.0-XFXjbv5ra9DLE4KMOqCF/dist=es2020,mode=imports/optimized/json-ptr.js": "b6df34ca96eedd593f491c986d13b76c91d1678b6e0a4c3652f2ff3005c8d372",
+  "https://cdn.skypack.dev/-/tslib@v2.1.0-MLGlgmjPar8j2y7qEZaV/dist=es2020,mode=imports/optimized/tslib.js": "151ea8a5bb3f8472e3a49b957b48cc6ad19cd09156d6243e4ff3e03f242c339c",
+  "https://cdn.skypack.dev/json-ptr": "0687710fe04690b212ff00c92a625a6a4656d4ddb8b4d2bae45a205ebb5f744d",
   "https://deno.land/x/graphql_deno@v15.0.0/lib/error/GraphQLError.d.ts": "aa0d285b36b47fb1f100d69c8f8943a21e6936ab94a9b5980b6f41fc0857f0ea",
   "https://deno.land/x/graphql_deno@v15.0.0/lib/error/GraphQLError.js": "18adbba7aa651770e0876d0c7df4e6e2ab647a9f09d4b5c107c57d6fa157be9d",
   "https://deno.land/x/graphql_deno@v15.0.0/lib/error/formatError.d.ts": "cdaad07cbbae178884d9145c9682d43ab0fac4cbf993ff58fc338ec5e0ac1cf9",
@@ -562,5 +562,5 @@
   "https://deno.land/x/ramda@v0.27.2/source/zip.js": "29a04e7dd0a012e391fc595900b4cb0124a13c738f4e6f4489c7173b4a6642dc",
   "https://deno.land/x/ramda@v0.27.2/source/zipObj.js": "c463fe415ecf647561a12ed9dd3444a0be4dd642e787e156fe8caf7fee0ce4ca",
   "https://deno.land/x/ramda@v0.27.2/source/zipWith.js": "2081388ae101a01f60589f0a74b7a8e75fdc7a6416c224673f197633750041ec",
-  "https://raw.githubusercontent.com/kogosoftwarellc/open-api/master/packages/openapi-types/index.ts": "0d24ccf5040f215d93de286aac915d60b934e2e8c1381fd71123018037917ffc"
+  "https://raw.githubusercontent.com/kogosoftwarellc/open-api/master/packages/openapi-types/index.ts": "4a3da5a40d3b324544f95b00f6a91a671168b442aa74c606bf1a466766e4d4cb"
 }

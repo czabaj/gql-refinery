@@ -1,10 +1,22 @@
 import { JsonPointer, OpenAPIV3, R } from "../../deps.ts";
 import {
+  isValidGraphQLName,
+} from "../graphql/validName.ts";
+import {
+  HttpMethod,
   OpenAPIV3Algebraic,
   OpenAPIV3Enum,
   OpenAPIV3Object,
   OpenAPIV3Scalar,
 } from "../types.d.ts";
+
+export const httpMethods: HttpMethod[] = [
+  `delete`,
+  `get`,
+  `patch`,
+  `post`,
+  `put`,
+];
 
 export const createOneOf = (
   objects: Array<OpenAPIV3.ReferenceObject | OpenAPIV3.SchemaObject>,
@@ -107,24 +119,6 @@ export const resolveRef = <Dereferenced>(
   return dereferenced;
 };
 
-/**
- * Consumes arbitrary OpenAPI object. When the object is ReferenceObject,
- * dereferences it (even transitively). Returns tuple of
- * - [SchemaObject] - when the passed object was not reference
- * - [ShcemaObject, JSONPointer] - when the passed object was ReferenceObject,
- *  the JSONPointer is the $ref pointing to the SchemaObject.
- */
-export const dereference = (document: OpenAPIV3.Document) => {
-  const dereferenceImpl = <OASType>(
-    input: OASType | OpenAPIV3.ReferenceObject,
-    ref?: string,
-  ): [OASType, string] | [OASType] =>
-    isReference(input)
-      ? dereferenceImpl(resolveRef<OASType>(document, input.$ref), input.$ref)
-      : ref
-      ? [input, ref]
-      : [input];
-  return R.unary(dereferenceImpl) as <OASType>(
-    input: OASType | OpenAPIV3.ReferenceObject,
-  ) => [OASType, string] | [OASType];
-};
+// deno-lint-ignore no-explicit-any
+export const isValidGqlEnumValue = (value: any): value is string =>
+  typeof value === "string" && isValidGraphQLName(value);
