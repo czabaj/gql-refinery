@@ -90,11 +90,14 @@ export const isScalar = (
 export const lastJsonPointerPathSegment = (ref: string): string =>
   R.last(JsonPointer.decode(ref));
 
+/**
+ * Returns target of the JSON pointer in the document. Currently supports only
+ * local pointers.
+ */
 export const resolveRef = <Dereferenced>(
   document: OpenAPIV3.Document,
   $ref: string,
 ): Dereferenced => {
-  // Could be extended to handle non-local JSON pointers
   const dereferenced = JsonPointer.get(document, $ref);
   if (!dereferenced) {
     throw new Error(
@@ -104,6 +107,13 @@ export const resolveRef = <Dereferenced>(
   return dereferenced;
 };
 
+/**
+ * Consumes arbitrary OpenAPI object. When the object is ReferenceObject,
+ * dereferences it (even transitively). Returns tuple of
+ * - [SchemaObject] - when the passed object was not reference
+ * - [ShcemaObject, JSONPointer] - when the passed object was ReferenceObject,
+ *  the JSONPointer is the $ref pointing to the SchemaObject.
+ */
 export const dereference = (document: OpenAPIV3.Document) => {
   const dereferenceImpl = <OASType>(
     input: OASType | OpenAPIV3.ReferenceObject,
@@ -117,44 +127,4 @@ export const dereference = (document: OpenAPIV3.Document) => {
   return R.unary(dereferenceImpl) as <OASType>(
     input: OASType | OpenAPIV3.ReferenceObject,
   ) => [OASType, string] | [OASType];
-};
-
-type ExtraArgs<
-  // deno-lint-ignore no-explicit-any
-  Fn extends (first: any, second: any, ...extra: any[]) => any,
-> =
-  // deno-lint-ignore no-explicit-any
-  Parameters<Fn> extends [any, any, ...(infer Extra)] ? Extra : never;
-export const dereferenceAndDistill = <
-  OASType,
-  Distilled,
->(
-  boundDereference: ReturnType<typeof dereference>,
-  distiller: (
-    ref: string | undefined,
-    input: OASType,
-    // deno-lint-ignore no-explicit-any
-    ...other: any[]
-  ) => Distilled,
-): (
-  input: OASType | OpenAPIV3.ReferenceObject,
-  ...other: ExtraArgs<typeof distiller>
-) => Distilled => {
-  // resolves reference and pass dereferenced object to distiller
-  const referenceDistiller = (
-    ref: string,
-    input: OASType,
-    other: ExtraArgs<typeof distiller>,
-  ) => distiller(ref, input, ...other);
-  // results of reference distillation is memoized by reference path
-  const memoizedReferenceDistiller = R.memoizeWith(
-    R.identity,
-    referenceDistiller,
-  );
-  return (input, ...other) => {
-    const [dereferenced, ref] = boundDereference<OASType>(input);
-    return ref
-      ? memoizedReferenceDistiller(ref, dereferenced, other)
-      : distiller(undefined, dereferenced, ...other);
-  };
 };

@@ -18,7 +18,6 @@ import {
 import {
   createOneOf,
   dereference,
-  dereferenceAndDistill,
   emptySchemaObject,
   graphqlCompliantMediaType,
   isAlgebraic,
@@ -65,6 +64,41 @@ export type Context = {
   interfaceExtension: InterfaceExtension;
 };
 
+export const dereferenceEnhancer = <Schema extends OpenAPIV3.SchemaObject, Output>(
+  { boundDereference }: Context,
+) =>
+  (
+    next: (
+      ref: string | undefined,
+      dereferenced: Schema,
+      // deno-lint-ignore no-explicit-any
+      ...other: any[]
+    ) => Output,
+  ) =>
+    // deno-lint-ignore no-explicit-any
+    (schema: OpenAPIV3.ReferenceObject | Schema, ...other: any[]) => {
+      const [dereferenced, ref] = boundDereference<Schema>(schema);
+      return next(ref, dereferenced, ...other);
+    };
+export const memoizeReferencesEnhancer = <
+  Schema extends OpenAPIV3.SchemaObject,
+  Output,
+>(
+  // deno-lint-ignore no-explicit-any
+  next: (ref: string | undefined, schema: Schema, ...other: any[]) => Output,
+) => {
+  const cache = new Map<string, Output>();
+  // deno-lint-ignore no-explicit-any
+  return (ref: string | undefined, schema: Schema, ...other: any[]): Output => {
+    if (!ref) return next(ref, schema, ...other);
+    if (cache.has(ref)) return cache.get(ref) as Output;
+    const output = next(ref, schema, ...other);
+    cache.set(ref, output);
+    return output;
+  };
+};
+
+
 const distillName = (
   title: string | undefined,
   ref: string | undefined,
@@ -88,15 +122,29 @@ const distillPropertyName = (
   return validName;
 };
 
-const distillLeafType = (context: Context) => {
-  const { hooks: { onEnumDistilled } } = context;
-  return (ref: string | undefined, schema: OpenAPIV3.SchemaObject, parentName: string) => {
+// deno-lint-ignore no-explicit-any
+const isValidGqlEnumValue = (value: any): value is string =>
+  typeof value === "string" && isValidGraphQLName(value);
+
+const distillLeafType = ({ hooks: { onEnumDistilled } }: Context) =>
+  memoizeReferencesEnhancer((
+    ref: string | undefined,
+    schema: OpenAPIV3.SchemaObject,
+    parentName: string,
+  ) => {
     if (isEnum(schema)) {
       const name = distillName(schema.title, ref, parentName);
-      console.log("enum distilled", { title: schema.title, ref, parentName });
       onEnumDistilled?.(name, schema);
-      // TODO: distill to GraphQLEnum if values are GraphQL compatible
-      return G.GraphQLString;
+      return schema.enum.every(isValidGqlEnumValue)
+        ? new G.GraphQLEnumType({
+          name,
+          values: schema.enum.reduce((acc, value) => {
+            acc[value] = { value };
+            return acc;
+          }, {} as G.GraphQLEnumValueConfigMap),
+        })
+        : // TODO: fallback to other primitive types, e.g. GraphQLFloat when all enum members are numbers
+          G.GraphQLString;
     }
     if (isScalar(schema)) {
       switch (schema.type) {
@@ -112,29 +160,28 @@ const distillLeafType = (context: Context) => {
     }
     throw new Error(`Unsupported schema in "distillLeafType" function:
       ${stringify(schema, { maxDepth: 1 })}`);
-  };
-};
+  });
 
 const distillInputType = (
   context: Context,
   boundDistillLeafType: ReturnType<typeof distillLeafType>,
 ) => {
   const { boundDereference } = context;
-  const boundDistillInputType: (
-    schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject,
-    parentName: string,
-  ) => G.GraphQLInputType = dereferenceAndDistill<
-    OpenAPIV3.SchemaObject,
-    G.GraphQLInputType
-  >(
-    boundDereference,
-    (ref, schema, parentName: string) => {
+  const enhancedDistillInputType = R.compose(
+    dereferenceEnhancer(context),
+    memoizeReferencesEnhancer,
+  )(
+    (
+      ref: string | undefined,
+      schema: OpenAPIV3.SchemaObject,
+      parentName: string,
+    ) => {
       if (isAlgebraic(schema)) {
         const name = distillName(schema.title, ref, parentName);
         const types = (schema.allOf || schema.anyOf || schema.oneOf)!.map((
           component,
           idx,
-        ) => boundDistillInputType(component, `${name}_${idx}`));
+        ) => enhancedDistillInputType(component, `${name}_${idx}`));
         if (!types.every(G.isInputObjectType)) {
           throw new Error(
             [
@@ -148,7 +195,7 @@ const distillInputType = (
       }
       if (isList(schema)) {
         return new G.GraphQLList(
-          boundDistillInputType(schema.items, parentName),
+          enhancedDistillInputType(schema.items, parentName),
         );
       }
       if (isObject(schema)) {
@@ -161,7 +208,7 @@ const distillInputType = (
               const derefSchema = boundDereference<OpenAPIV3.SchemaObject>(
                 propSchema,
               )[0];
-              const type = boundDistillInputType(
+              const type = enhancedDistillInputType(
                 propSchema,
                 `${name}_${propName}`,
               );
@@ -182,7 +229,8 @@ const distillInputType = (
       return boundDistillLeafType(ref, schema, parentName);
     },
   );
-  return boundDistillInputType;
+
+  return enhancedDistillInputType;
 };
 
 const distillOutputType = (
@@ -190,93 +238,91 @@ const distillOutputType = (
   boundDistillLeafType: ReturnType<typeof distillLeafType>,
 ) => {
   const { boundDereference, interfaceExtension } = context;
-
-  const boundDistillOutputType: (
-    schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject,
+  const enhancedDistillOutputType = R.compose(
+    dereferenceEnhancer(context),
+    memoizeReferencesEnhancer,
+  )((
+    ref: string | undefined,
+    schema: OpenAPIV3.SchemaObject,
     parentName: string,
-  ) => G.GraphQLOutputType = dereferenceAndDistill<
-    OpenAPIV3.SchemaObject,
-    G.GraphQLOutputType
-  >(
-    boundDereference,
-    (ref, schema, parentName: string) => {
-      if (isAlgebraic(schema)) {
-        const name = distillName(schema.title, ref, parentName);
-        const union = !schema.allOf;
-        const types = (schema.allOf || schema.anyOf || schema.oneOf)!.map((
-          component,
-          idx,
-        ) => boundDistillOutputType(component, `${name}_${idx}`));
-        if (!types.every(G.isObjectType)) {
-          throw new Error(
-            [
-              `Sorry, algebraic types could be composed only from object types.`,
-              stringify(schema, { maxDepth: 2 }),
-              `Above schema is composed from non-object types.`,
-            ].join(`\n`),
-          );
-        }
-        if (union) {
-          return new G.GraphQLUnionType({
-            description: schema.description,
-            name,
-            types,
-          });
-        }
-        const intersection = mergeObjects(types, name);
-        (schema.allOf || schema.anyOf)!.forEach(
-          (component, idx) => {
-            if (isReference(component)) {
-              const interfaceObject = types[idx];
-              interfaceExtension.addInterfaceConnection(
-                interfaceObject,
-                intersection,
-              );
-            }
-          },
-        );
-        return intersection;
-      }
-      if (isList(schema)) {
-        return new G.GraphQLList(
-          boundDistillOutputType(schema.items, parentName),
+  ) => {
+    if (isAlgebraic(schema)) {
+      const name = distillName(schema.title, ref, parentName);
+      const union = !schema.allOf;
+      const types = (schema.allOf || schema.anyOf || schema.oneOf)!.map((
+        component,
+        idx,
+      ) => enhancedDistillOutputType(component, `${name}_${idx}`));
+      if (!types.every(G.isObjectType)) {
+        throw new Error(
+          [
+            `Sorry, algebraic types could be composed only from object types.`,
+            stringify(schema, { maxDepth: 2 }),
+            `Above schema is composed from non-object types.`,
+          ].join(`\n`),
         );
       }
-      if (isObject(schema)) {
-        const name = distillName(schema.title, ref, parentName);
-        const { required } = schema;
-        const objectType = new G.GraphQLObjectType({
+      if (union) {
+        return new G.GraphQLUnionType({
           description: schema.description,
-          fields: Object.fromEntries(
-            Object.entries(schema.properties).map(([propName, propSchema]) => {
-              const derefSchema = boundDereference<OpenAPIV3.SchemaObject>(
-                propSchema,
-              )[0];
-              const type = propName === `id` && isScalar(derefSchema)
-                ? G.GraphQLID
-                : boundDistillOutputType(
-                  propSchema,
-                  `${name}_${propName}`,
-                );
-              return [
-                distillPropertyName(context, name, propName),
-                {
-                  description: derefSchema.description,
-                  type: required?.includes(propName)
-                    ? G.GraphQLNonNull(type)
-                    : type,
-                },
-              ];
-            }),
-          ),
           name,
+          types,
         });
-        return objectType;
       }
-      return boundDistillLeafType(ref, schema, parentName);
-    },
-  );
-  return boundDistillOutputType;
+      const intersection = mergeObjects(types, name);
+      (schema.allOf || schema.anyOf)!.forEach(
+        (component, idx) => {
+          if (isReference(component)) {
+            const interfaceObject = types[idx];
+            interfaceExtension.addInterfaceConnection(
+              interfaceObject,
+              intersection,
+            );
+          }
+        },
+      );
+      return intersection;
+    }
+    if (isList(schema)) {
+      return new G.GraphQLList(
+        enhancedDistillOutputType(schema.items, parentName),
+      );
+    }
+    if (isObject(schema)) {
+      const name = distillName(schema.title, ref, parentName);
+      const { required } = schema;
+      const objectType = new G.GraphQLObjectType({
+        description: schema.description,
+        fields: Object.fromEntries(
+          Object.entries(schema.properties).map(([propName, propSchema]) => {
+            const derefSchema = boundDereference<OpenAPIV3.SchemaObject>(
+              propSchema,
+            )[0];
+            const type = propName === `id` && isScalar(derefSchema)
+              ? G.GraphQLID
+              : enhancedDistillOutputType(
+                propSchema,
+                `${name}_${propName}`,
+              );
+            return [
+              distillPropertyName(context, name, propName),
+              {
+                description: derefSchema.description,
+                type: required?.includes(propName)
+                  ? G.GraphQLNonNull(type)
+                  : type,
+              },
+            ];
+          }),
+        ),
+        name,
+      });
+      return objectType;
+    }
+    return boundDistillLeafType(ref, schema, parentName);
+  });
+
+  return enhancedDistillOutputType;
 };
 
 const BODY: BodyArg = `body`;
@@ -285,10 +331,14 @@ const distillArguments = (
   boundDistillInputType: ReturnType<typeof distillInputType>,
 ) => {
   const { boundDereference } = context;
-  const boundDistillParameter = dereferenceAndDistill<
-    OpenAPIV3.ParameterObject,
-    DistilledOperationParameter
-  >(boundDereference, (_ref, parameter, parentName) => {
+  const enhancedDistillParameter = R.compose(
+    dereferenceEnhancer(context),
+    memoizeReferencesEnhancer,
+  )((
+    _ref: string | undefined,
+    parameter: OpenAPIV3.ParameterObject,
+    parentName: string,
+  ) => {
     const { name, required = false } = parameter;
     if (parameter.in !== BODY && name === BODY) {
       throw new Error(
@@ -319,7 +369,7 @@ const distillArguments = (
     const dereferencedBody = requestBody &&
       (boundDereference<OpenAPIV3.RequestBodyObject>(requestBody)[0]);
     return !dereferencedBody && R.isEmpty(parameters) ? undefined : ([
-      dereferencedBody && boundDistillParameter(
+      dereferencedBody && enhancedDistillParameter(
         {
           in: BODY,
           name: BODY,
@@ -331,7 +381,7 @@ const distillArguments = (
     ]
       .concat(
         parameters?.map((parameter) =>
-          boundDistillParameter(parameter, operationId)
+          enhancedDistillParameter(parameter, operationId)
         ),
       )
       .filter(Boolean) as DistilledOperationParameter[]);
