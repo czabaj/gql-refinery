@@ -17,3 +17,10 @@ lock:
 
 install:
 	deno cache --reload --lock=lock.json deps.ts
+
+nodeBundleIssue:
+	node ./node/cli.mjs -- outputDir=tmp __fixtures__/gate_api.yaml
+
+denoBundleIssue:
+	deno run --allow-read=./__fixtures__ --allow-write=./tmp \
+		cli_bundle.ts --outputDir=./tmp ./__fixtures__/gate_api.yaml
