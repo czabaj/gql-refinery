@@ -1,4 +1,2 @@
-* export-ignore
-node/** -export-ignore
-package.json -export-ignore
-src/types.d.ts -export-ignore
+__fixtures__/ export-ignore
+.vscode export-ignore
