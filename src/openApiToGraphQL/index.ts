@@ -207,11 +207,12 @@ export class GraphQLFurnace {
     }
     if (isObject(schema)) {
       const name = `${toValidTypeName(schema.title, ref, parentName)}Input`;
-      const { required } = schema;
+      const { properties, required } = schema;
+      const nonEmptyProperties = properties || emptySchemaObject.properties
       return new G.GraphQLInputObjectType({
         description: schema.description,
         fields: Object.fromEntries(
-          Object.entries(schema.properties).map(([propName, propSchema]) => {
+          Object.entries(nonEmptyProperties).map(([propName, propSchema]) => {
             const derefSchema = this.dereference<OpenAPIV3.SchemaObject>(
               propSchema,
             )[0];
@@ -293,11 +294,12 @@ export class GraphQLFurnace {
     }
     if (isObject(schema)) {
       const name = toValidTypeName(schema.title, ref, parentName);
-      const { required } = schema;
+      const { properties, required } = schema;
+      const nonEmptyProperties = properties || emptySchemaObject.properties
       const objectType = new G.GraphQLObjectType({
         description: schema.description,
         fields: Object.fromEntries(
-          Object.entries(schema.properties).map(([propName, propSchema]) => {
+          Object.entries(nonEmptyProperties).map(([propName, propSchema]) => {
             const derefSchema =
               this.dereference<OpenAPIV3.SchemaObject>(propSchema)[0];
             const type = propName === `id` && isScalar(derefSchema)

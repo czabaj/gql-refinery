@@ -82,7 +82,7 @@ export type OpenAPIV3Enum =
 
 export type OpenAPIV3Object = OpenAPIV3.NonArraySchemaObject & {
   type: `object`;
-} & Required<Pick<OpenAPIV3.NonArraySchemaObject, `properties`>>;
+} & OpenAPIV3.NonArraySchemaObject;
 
 export type OpenAPIV3Scalar = OpenAPIV3.NonArraySchemaObject & {
   type: `boolean` | `integer` | `number` | `string`;

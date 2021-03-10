@@ -1,7 +1,5 @@
 import { JsonPointer, OpenAPIV3, R } from "../../deps.ts";
-import {
-  isValidGraphQLName,
-} from "../graphql/validName.ts";
+import { isValidGraphQLName } from "../graphql/validName.ts";
 import {
   HttpMethod,
   OpenAPIV3Algebraic,
@@ -31,10 +29,12 @@ export const isSuccessStatusCode = (statusCode: string): boolean =>
  * GraphQL does not support empty object, every object type must have at least one property.
  * This declaration with boolean `_` attribute thus represents virtually empty object.
  */
-export const emptySchemaObject: OpenAPIV3.SchemaObject = {
-  type: "object",
-  properties: { _: { type: "boolean" } },
-};
+export const emptySchemaObject:
+  & OpenAPIV3Object
+  & Required<Pick<OpenAPIV3.NonArraySchemaObject, `properties`>> = {
+    type: "object",
+    properties: { _: { type: "boolean" } },
+  };
 
 const mediaJSON = /application\/json/i;
 export const graphqlCompliantMediaType = (
